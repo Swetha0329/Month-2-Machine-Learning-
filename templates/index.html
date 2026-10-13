@@ -1,0 +1,3392 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MailGuard AI | Spam Detector</title>
+
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+
+    <style>
+        :root {
+            --bg: #e8ecf2;
+            --surface: #ffffff;
+            --soft: #f5f7fb;
+            --text: #202124;
+            --muted: #687386;
+            --border: #d3d9e3;
+            --blue: #4285f4;
+            --red: #d93025;
+            --red-soft: #fce8e6;
+            --green: #188038;
+            --green-soft: #e6f4ea;
+            --amber: #b06000;
+            --amber-soft: #fef7e0;
+            --glass: rgba(255, 255, 255, 0.78);
+            --shadow: 0 10px 30px rgba(36, 54, 86, 0.12);
+            --shadow-sm: 0 6px 16px rgba(36, 54, 86, 0.10);
+            --shadow-lg: 0 20px 48px rgba(36, 54, 86, 0.20);
+        }
+
+        body.dark {
+            --bg: #10141d;
+            --surface: #191f2b;
+            --soft: #202838;
+            --text: #eef2fa;
+            --muted: #a5afc2;
+            --border: #303a4c;
+            --blue: #8ab4f8;
+            --red: #ff8a80;
+            --red-soft: #432b31;
+            --green: #81c995;
+            --green-soft: #203b30;
+            --amber: #fdd663;
+            --amber-soft: #3d3420;
+            --glass: rgba(25, 31, 43, 0.78);
+            --shadow: 0 12px 35px rgba(0, 0, 0, 0.2);
+            --shadow-sm: 0 6px 16px rgba(0, 0, 0, 0.25);
+            --shadow-lg: 0 20px 48px rgba(0, 0, 0, 0.45);
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+
+        html { scroll-behavior: smooth; }
+
+        body {
+            font-family: Inter, sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            min-height: 100vh;
+            transition: background .25s, color .25s;
+        }
+
+        /* Drifting colour glow behind the page */
+        body::before {
+            content: "";
+            position: fixed;
+            inset: 0;
+            z-index: -1;
+            pointer-events: none;
+            background:
+                radial-gradient(620px 420px at 6% 4%, rgba(66, 133, 244, .18), transparent 60%),
+                radial-gradient(540px 380px at 94% 10%, rgba(234, 67, 53, .11), transparent 60%),
+                radial-gradient(580px 430px at 88% 90%, rgba(52, 168, 83, .14), transparent 60%),
+                radial-gradient(500px 360px at 8% 92%, rgba(251, 188, 5, .11), transparent 60%);
+            animation: drift 20s ease-in-out infinite alternate;
+        }
+
+        body.dark::before { opacity: .55; }
+
+        ::selection { background: rgba(66, 133, 244, .28); }
+
+        ::-webkit-scrollbar { width: 10px; height: 10px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+
+        ::-webkit-scrollbar-thumb {
+            background: var(--border);
+            border-radius: 10px;
+            border: 2px solid transparent;
+            background-clip: content-box;
+        }
+
+        ::-webkit-scrollbar-thumb:hover { background: var(--muted); background-clip: content-box; }
+
+        button, textarea, input { font: inherit; }
+
+        button:focus-visible, a:focus-visible, input:focus-visible, label:focus-visible {
+            outline: 2px solid var(--blue);
+            outline-offset: 2px;
+        }
+
+        .topbar {
+            position: sticky;
+            top: 0;
+            z-index: 40;
+            height: 75px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 0 7%;
+            background: var(--glass);
+            -webkit-backdrop-filter: blur(16px) saturate(1.5);
+            backdrop-filter: blur(16px) saturate(1.5);
+            border-bottom: 1px solid var(--border);
+        }
+
+        .brand { display: flex; align-items: center; gap: 12px; }
+
+        .brand-icon {
+            width: 43px;
+            height: 43px;
+            display: grid;
+            place-items: center;
+            border-radius: 14px;
+            color: white;
+            font-size: 22px;
+            font-weight: 800;
+            background: linear-gradient(135deg, #4285f4, #34a853);
+            box-shadow: 0 8px 20px rgba(66, 133, 244, .42);
+            transition: transform .3s;
+        }
+
+        .brand:hover .brand-icon { transform: rotate(-8deg) scale(1.06); }
+
+        .brand-name { font-size: 19px; font-weight: 800; }
+        .brand-name span { color: var(--blue); }
+        .subtitle { margin-top: 4px; font-size: 11px; color: var(--muted); }
+
+        .theme-button {
+            width: 43px;
+            height: 43px;
+            border: 1px solid var(--border);
+            background: var(--surface);
+            color: var(--text);
+            border-radius: 13px;
+            font-size: 20px;
+            cursor: pointer;
+            box-shadow: var(--shadow-sm);
+            transition: transform .3s, border-color .2s, box-shadow .2s;
+        }
+
+        .theme-button:hover {
+            transform: rotate(20deg) scale(1.06);
+            border-color: var(--blue);
+            box-shadow: 0 8px 20px rgba(66, 133, 244, .25);
+        }
+
+        .main { max-width: 1100px; margin: auto; padding: 45px 22px 30px; }
+        .hero { text-align: center; margin-bottom: 32px; }
+
+        .eyebrow {
+            display: inline-block;
+            padding: 8px 14px;
+            border: 1px solid var(--border);
+            background: var(--glass);
+            -webkit-backdrop-filter: blur(8px);
+            backdrop-filter: blur(8px);
+            border-radius: 30px;
+            color: var(--blue);
+            font-size: 11px;
+            font-weight: 700;
+            margin-bottom: 18px;
+            box-shadow: var(--shadow-sm);
+            animation: eyebrowGlow 3s ease-in-out infinite;
+        }
+
+        h1 {
+            font-size: clamp(42px, 8vw, 72px);
+            font-weight: 800;
+            line-height: 1.12;
+            letter-spacing: -2px;
+            animation: riseIn .7s ease backwards;
+        }
+
+        .gradient-line {
+            display: inline-block;
+            background-size: 200% 100%;
+            -webkit-background-clip: text;
+            background-clip: text;
+            -webkit-text-fill-color: transparent;
+            color: transparent;
+            animation: shimmer 7s ease-in-out infinite;
+            filter: drop-shadow(0 8px 22px rgba(66, 133, 244, .22));
+        }
+
+        .gradient-green {
+            background-image: linear-gradient(90deg, #4285f4 0%, #34a853 50%, #4285f4 100%);
+        }
+
+        .gradient-red {
+            background-image: linear-gradient(90deg, #4285f4 0%, #ea4335 50%, #4285f4 100%);
+        }
+
+        .hero p {
+            max-width: 570px;
+            margin: 13px auto 0;
+            color: var(--muted);
+            font-size: 13px;
+            line-height: 1.8;
+        }
+
+        .hero-chips {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+            gap: 10px;
+            margin-top: 22px;
+        }
+
+        .hero-chip {
+            padding: 8px 14px;
+            border: 1px solid var(--border);
+            border-radius: 30px;
+            background: var(--glass);
+            -webkit-backdrop-filter: blur(8px);
+            backdrop-filter: blur(8px);
+            font-size: 11px;
+            font-weight: 700;
+            box-shadow: var(--shadow-sm);
+            transition: transform .2s, border-color .2s;
+        }
+
+        .hero-chip:hover { transform: translateY(-2px); border-color: var(--blue); }
+
+        .workspace {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+            align-items: start;
+        }
+
+        .panel {
+            position: relative;
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 20px;
+            overflow: hidden;
+            box-shadow: var(--shadow);
+            animation: riseIn .55s ease backwards;
+            transition: transform .25s ease, box-shadow .25s ease, border-color .25s ease;
+        }
+
+        .panel::before {
+            content: "";
+            position: absolute;
+            inset: 0 0 auto 0;
+            height: 3px;
+            background: linear-gradient(90deg, #4285f4, #ea4335, #fbbc05, #34a853);
+            opacity: .9;
+        }
+
+        .panel:hover {
+            transform: translateY(-3px);
+            box-shadow: var(--shadow-lg);
+            border-color: rgba(66, 133, 244, .4);
+        }
+
+        .workspace > .panel:nth-child(2) { animation-delay: .1s; }
+
+        .panel-header {
+            padding: 22px;
+            border-bottom: 1px solid var(--border);
+            background: linear-gradient(180deg, var(--soft), transparent);
+        }
+
+        .panel-title {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-size: 15px;
+            font-weight: 750;
+        }
+
+        .title-icon {
+            width: 35px;
+            height: 35px;
+            display: grid;
+            place-items: center;
+            background: linear-gradient(135deg, #e8f0fe, #cfe0fc);
+            color: #1967d2;
+            border-radius: 11px;
+            box-shadow: 0 4px 10px rgba(66, 133, 244, .22);
+        }
+
+        body.dark .title-icon {
+            background: linear-gradient(135deg, #2c4670, #22385a);
+            color: #aecbfa;
+            box-shadow: 0 4px 10px rgba(0, 0, 0, .3);
+        }
+
+        .description {
+            margin-top: 9px;
+            color: var(--muted);
+            font-size: 12px;
+            line-height: 1.7;
+        }
+
+        .panel-body { padding: 22px; }
+
+        .field-label {
+            display: block;
+            font-size: 12px;
+            font-weight: 700;
+            margin-bottom: 10px;
+        }
+
+        .textarea-wrap { position: relative; }
+
+        textarea {
+            display: block;
+            width: 100%;
+            min-height: 200px;
+            padding: 15px 15px 36px;
+            border: 1.5px solid var(--border);
+            border-radius: 13px;
+            outline: none;
+            resize: vertical;
+            background: var(--soft);
+            color: var(--text);
+            font-size: 13px;
+            line-height: 1.8;
+            transition: border-color .2s, box-shadow .2s, background .2s;
+        }
+
+        textarea:focus {
+            border-color: var(--blue);
+            background: var(--surface);
+            box-shadow: 0 0 0 4px rgba(66, 133, 244, .16), 0 8px 22px rgba(66, 133, 244, .12);
+        }
+
+        textarea::placeholder { color: var(--muted); }
+
+        .char-count {
+            position: absolute;
+            bottom: 12px;
+            right: 13px;
+            font-size: 10px;
+            color: var(--muted);
+        }
+
+        .examples { margin-top: 17px; }
+        .examples-label { font-size: 11px; color: var(--muted); margin-bottom: 9px; }
+        .example-buttons { display: flex; flex-wrap: wrap; gap: 8px; }
+
+        .example-button {
+            padding: 8px 12px;
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            background: var(--surface);
+            color: var(--text);
+            font-size: 11px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: transform .2s, border-color .2s, color .2s, box-shadow .2s;
+        }
+
+        .example-button:hover {
+            border-color: var(--blue);
+            color: var(--blue);
+            transform: translateY(-2px);
+            box-shadow: 0 8px 18px rgba(66, 133, 244, .18);
+        }
+
+        .analyze-button {
+            position: relative;
+            overflow: hidden;
+            width: 100%;
+            min-height: 50px;
+            margin-top: 22px;
+            border: none;
+            border-radius: 13px;
+            background: linear-gradient(135deg, #4285f4 0%, #2f6fe4 100%);
+            color: white;
+            font-size: 13px;
+            font-weight: 750;
+            letter-spacing: .2px;
+            cursor: pointer;
+            box-shadow: 0 10px 24px rgba(66, 133, 244, .38);
+            transition: transform .2s, box-shadow .2s;
+        }
+
+        .analyze-button::after {
+            content: "";
+            position: absolute;
+            top: 0;
+            left: -60%;
+            width: 40%;
+            height: 100%;
+            background: linear-gradient(100deg, transparent, rgba(255, 255, 255, .38), transparent);
+            transform: skewX(-20deg);
+            transition: left .7s;
+        }
+
+        .analyze-button:hover:not(:disabled) {
+            transform: translateY(-2px);
+            box-shadow: 0 16px 32px rgba(66, 133, 244, .5);
+        }
+
+        .analyze-button:hover:not(:disabled)::after { left: 130%; }
+        .analyze-button:active:not(:disabled) { transform: translateY(0); }
+        .analyze-button:disabled { opacity: .88; cursor: wait; }
+
+        body.dark .analyze-button {
+            background: linear-gradient(135deg, #8ab4f8 0%, #669df6 100%);
+            color: #10141d;
+            box-shadow: 0 10px 24px rgba(138, 180, 248, .28);
+        }
+
+        .is-loading::before {
+            content: "";
+            display: inline-block;
+            width: 14px;
+            height: 14px;
+            margin-right: 10px;
+            vertical-align: -2px;
+            border: 2px solid rgba(255, 255, 255, .45);
+            border-top-color: #ffffff;
+            border-radius: 50%;
+            animation: spin .7s linear infinite;
+        }
+
+        body.dark .is-loading::before {
+            border-color: rgba(16, 20, 29, .35);
+            border-top-color: #10141d;
+        }
+
+        .result-card {
+            padding: 18px;
+            border: 1px solid var(--border);
+            border-radius: 15px;
+            background: var(--soft);
+            animation: popIn .5s ease backwards;
+        }
+
+        .result-card.spam {
+            background: var(--red-soft);
+            border-color: rgba(217, 48, 37, .25);
+            box-shadow: 0 12px 28px rgba(217, 48, 37, .16);
+        }
+
+        .result-card.safe {
+            background: var(--green-soft);
+            border-color: rgba(24, 128, 56, .25);
+            box-shadow: 0 12px 28px rgba(24, 128, 56, .15);
+        }
+
+        .result-label {
+            color: var(--muted);
+            font-size: 10px;
+            font-weight: 700;
+            margin-bottom: 12px;
+        }
+
+        .result-heading { display: flex; align-items: center; gap: 13px; }
+
+        .result-symbol {
+            width: 45px;
+            height: 45px;
+            display: grid;
+            place-items: center;
+            background: var(--surface);
+            border-radius: 13px;
+            font-size: 21px;
+        }
+
+        .spam .result-value, .spam .result-symbol { color: var(--red); }
+        .safe .result-value, .safe .result-symbol { color: var(--green); }
+
+        .spam .result-symbol { animation: pulseRed 2.2s ease-out infinite; }
+        .safe .result-symbol { animation: pulseGreen 2.2s ease-out infinite; }
+
+        .result-value { font-size: 20px; font-weight: 800; }
+        .result-caption { color: var(--muted); font-size: 11px; margin-top: 5px; }
+
+        .confidence { margin-top: 25px; }
+
+        .confidence-top {
+            display: flex;
+            justify-content: space-between;
+            gap: 10px;
+            margin-bottom: 11px;
+            font-size: 12px;
+            font-weight: 700;
+        }
+
+        .confidence-number { color: var(--blue); }
+
+        .progress-track {
+            height: 9px;
+            border-radius: 20px;
+            overflow: hidden;
+            background: var(--border);
+        }
+
+        .progress-fill {
+            position: relative;
+            overflow: hidden;
+            width: 0;
+            height: 100%;
+            border-radius: 20px;
+            background: linear-gradient(90deg, #4285f4, #34a853);
+            transition: width .8s cubic-bezier(.22, 1, .36, 1);
+        }
+
+        .progress-fill::after {
+            content: "";
+            position: absolute;
+            inset: 0;
+            background: linear-gradient(90deg, transparent, rgba(255, 255, 255, .5), transparent);
+            transform: translateX(-100%);
+            animation: sheen 2.4s ease-in-out infinite;
+        }
+
+        .note { margin-top: 11px; font-size: 10px; color: var(--muted); line-height: 1.7; }
+
+        .section { margin-top: 25px; }
+
+        .section-heading {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 12px;
+        }
+
+        .section-heading h3 { font-size: 13px; }
+        .section-heading span { font-size: 10px; color: var(--muted); }
+
+        .highlighted-message {
+            padding: 15px;
+            background: var(--soft);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            font-size: 12px;
+            line-height: 2;
+            white-space: pre-wrap;
+            overflow-wrap: anywhere;
+        }
+
+        .spam-word {
+            display: inline;
+            background: var(--red-soft);
+            color: var(--red);
+            border: 1px solid rgba(217, 48, 37, .22);
+            border-radius: 4px;
+            padding: 2px 3px;
+            font-weight: 700;
+            box-shadow: 0 2px 6px rgba(217, 48, 37, .15);
+        }
+
+        .word-tags { display: flex; flex-wrap: wrap; gap: 7px; margin-top: 12px; }
+
+        .word-tag {
+            padding: 6px 10px;
+            border-radius: 8px;
+            background: var(--red-soft);
+            color: var(--red);
+            font-size: 11px;
+            font-weight: 650;
+            transition: transform .2s;
+        }
+
+        .word-tag:hover { transform: translateY(-2px); }
+
+        .empty-chart {
+            color: var(--muted);
+            font-size: 12px;
+            line-height: 1.8;
+            background: var(--soft);
+            border: 1px dashed var(--border);
+            padding: 17px;
+            border-radius: 12px;
+        }
+
+        .chart-container { height: 230px; position: relative; width: 100%; }
+
+        .error-message {
+            margin-top: 15px;
+            padding: 12px 14px;
+            border-radius: 10px;
+            border-left: 4px solid var(--red);
+            color: var(--red);
+            background: var(--red-soft);
+            font-size: 12px;
+            line-height: 1.6;
+        }
+
+        .empty-state {
+            min-height: 280px;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            text-align: center;
+        }
+
+        .empty-icon {
+            font-size: 38px;
+            margin-bottom: 17px;
+            animation: floaty 3.2s ease-in-out infinite;
+        }
+
+        .empty-state h3 { font-size: 15px; margin-bottom: 9px; }
+
+        .empty-state p {
+            max-width: 245px;
+            font-size: 12px;
+            color: var(--muted);
+            line-height: 1.8;
+        }
+
+        .bottom-info {
+            display: flex;
+            justify-content: center;
+            gap: 18px;
+            flex-wrap: wrap;
+            margin-top: 25px;
+            font-size: 10px;
+            color: var(--muted);
+        }
+
+        footer {
+            text-align: center;
+            padding: 22px 15px 25px;
+            font-size: 10px;
+            color: var(--muted);
+            border-top: 1px solid transparent;
+            border-image: linear-gradient(90deg, transparent, var(--border), transparent) 1;
+        }
+
+        /* ---------- Feature styles ---------- */
+        @property --p {
+            syntax: "<number>";
+            inherits: false;
+            initial-value: 0;
+        }
+
+        .full-panel { margin-top: 20px; }
+
+        .action-row {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+            margin-top: 18px;
+        }
+
+        .action-button {
+            flex: 1;
+            min-width: 150px;
+            min-height: 44px;
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            background: var(--surface);
+            color: var(--text);
+            font-size: 12px;
+            font-weight: 700;
+            cursor: pointer;
+            transition: transform .2s, border-color .2s, color .2s, box-shadow .2s;
+            text-decoration: none;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            padding: 0 14px;
+        }
+
+        .action-button:hover:not(:disabled) {
+            border-color: var(--blue);
+            color: var(--blue);
+            transform: translateY(-2px);
+            box-shadow: 0 10px 20px rgba(66, 133, 244, .2);
+        }
+
+        .action-button.active {
+            background: linear-gradient(135deg, #4285f4, #2f6fe4);
+            border-color: transparent;
+            color: #ffffff;
+            box-shadow: 0 8px 20px rgba(66, 133, 244, .38);
+        }
+
+        body.dark .action-button.active {
+            background: linear-gradient(135deg, #8ab4f8, #669df6);
+            color: #10141d;
+        }
+
+        .action-button:disabled { opacity: .5; cursor: not-allowed; }
+
+        .threat-layout {
+            display: grid;
+            grid-template-columns: 190px minmax(240px, 1fr) 1.2fr;
+            gap: 26px;
+            align-items: center;
+            --ring-color: var(--blue);
+        }
+
+        .threat-low { --ring-color: #34a853; }
+        .threat-medium { --ring-color: #f9ab00; }
+        .threat-high { --ring-color: #e8710a; }
+        .threat-critical { --ring-color: #d93025; }
+
+        .threat-left { text-align: center; }
+
+        .threat-ring {
+            --p: 0;
+            width: 150px;
+            height: 150px;
+            margin: 0 auto;
+            display: grid;
+            place-items: center;
+            border-radius: 50%;
+            background: conic-gradient(
+                var(--ring-color) calc(var(--p) * 1%),
+                var(--border) 0
+            );
+            box-shadow: 0 0 0 8px color-mix(in srgb, var(--ring-color) 12%, transparent),
+                        0 12px 30px color-mix(in srgb, var(--ring-color) 30%, transparent);
+            transition: --p 1.1s cubic-bezier(.22, 1, .36, 1);
+        }
+
+        .threat-ring-inner {
+            width: 118px;
+            height: 118px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            border-radius: 50%;
+            background: var(--surface);
+        }
+
+        .threat-score {
+            font-size: 38px;
+            font-weight: 800;
+            line-height: 1;
+            color: var(--ring-color);
+        }
+
+        .threat-outof {
+            margin-top: 4px;
+            font-size: 10px;
+            font-weight: 700;
+            color: var(--muted);
+        }
+
+        .threat-level {
+            margin-top: 18px;
+            font-size: 14px;
+            font-weight: 800;
+            color: var(--ring-color);
+        }
+
+        .radar-container { position: relative; height: 260px; width: 100%; }
+
+        .threat-item + .threat-item { margin-top: 15px; }
+
+        .threat-item-top {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 8px;
+            font-size: 12px;
+            font-weight: 700;
+        }
+
+        .threat-item-top span:last-child { font-size: 11px; color: var(--muted); }
+
+        .mini-track {
+            height: 6px;
+            border-radius: 20px;
+            overflow: hidden;
+            background: var(--border);
+        }
+
+        .mini-fill {
+            width: 0;
+            height: 100%;
+            border-radius: 20px;
+            background: var(--ring-color, var(--blue));
+            transition: width .8s cubic-bezier(.22, 1, .36, 1);
+        }
+
+        .mini-fill.red { background: linear-gradient(90deg, #ea4335, var(--red)); }
+        .mini-fill.green { background: linear-gradient(90deg, #34a853, var(--green)); }
+
+        .threat-item .word-tags { margin-top: 9px; }
+
+        .dashboard { margin-top: 0; }
+        .dash-heading { margin-bottom: 16px; }
+        .dash-heading h2 { font-size: 22px; letter-spacing: -.5px; }
+        .dash-heading p { margin-top: 6px; font-size: 12px; color: var(--muted); }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+            gap: 14px;
+        }
+
+        .stat-card {
+            display: flex;
+            align-items: center;
+            gap: 14px;
+            padding: 18px;
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 18px;
+            box-shadow: var(--shadow);
+            animation: riseIn .55s ease backwards;
+            transition: transform .25s, box-shadow .25s, border-color .25s;
+        }
+
+        .stat-card:hover {
+            transform: translateY(-4px);
+            box-shadow: var(--shadow-lg);
+            border-color: rgba(66, 133, 244, .4);
+        }
+
+        .stats-grid .stat-card:nth-child(2) { animation-delay: .05s; }
+        .stats-grid .stat-card:nth-child(3) { animation-delay: .1s; }
+        .stats-grid .stat-card:nth-child(4) { animation-delay: .15s; }
+        .stats-grid .stat-card:nth-child(5) { animation-delay: .2s; }
+        .stats-grid .stat-card:nth-child(6) { animation-delay: .25s; }
+
+        .stat-icon {
+            width: 46px;
+            height: 46px;
+            flex-shrink: 0;
+            display: grid;
+            place-items: center;
+            border-radius: 14px;
+            font-size: 20px;
+            transition: transform .3s;
+        }
+
+        .stat-card:hover .stat-icon { transform: scale(1.1) rotate(-6deg); }
+
+        .stat-icon.blue { background: linear-gradient(135deg, #e8f0fe, #cfe0fc); color: #1967d2; }
+        .stat-icon.red { background: linear-gradient(135deg, var(--red-soft), var(--red-soft)); color: var(--red); }
+        .stat-icon.green { background: linear-gradient(135deg, var(--green-soft), var(--green-soft)); color: var(--green); }
+        .stat-icon.amber { background: linear-gradient(135deg, var(--amber-soft), var(--amber-soft)); color: var(--amber); }
+        body.dark .stat-icon.blue { background: linear-gradient(135deg, #2c4670, #22385a); color: #aecbfa; }
+
+        .stat-number { font-size: 26px; font-weight: 800; line-height: 1.1; }
+        .stat-label { margin-top: 4px; font-size: 11px; font-weight: 600; color: var(--muted); }
+
+        .split-card {
+            margin-top: 14px;
+            padding: 16px 18px;
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 18px;
+            box-shadow: var(--shadow);
+        }
+
+        .split-bar {
+            display: flex;
+            height: 11px;
+            border-radius: 20px;
+            overflow: hidden;
+            background: var(--border);
+        }
+
+        .split-seg { width: 0; height: 100%; transition: width .9s cubic-bezier(.22, 1, .36, 1); }
+        .split-seg.spam { background: linear-gradient(90deg, #ea4335, var(--red)); }
+        .split-seg.ham { background: linear-gradient(90deg, var(--green), #34a853); }
+
+        .split-legend {
+            display: flex;
+            justify-content: space-between;
+            gap: 10px;
+            margin-top: 10px;
+            font-size: 11px;
+            font-weight: 600;
+            color: var(--muted);
+        }
+
+        .perf-layout {
+            display: grid;
+            grid-template-columns: 1.2fr 1fr;
+            gap: 26px;
+            align-items: start;
+        }
+
+        .metric-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 14px;
+        }
+
+        .metric-card {
+            padding: 16px;
+            background: var(--soft);
+            border: 1px solid var(--border);
+            border-radius: 14px;
+            transition: transform .25s, box-shadow .25s, border-color .25s;
+        }
+
+        .metric-card:hover {
+            transform: translateY(-3px);
+            box-shadow: var(--shadow-sm);
+            border-color: rgba(66, 133, 244, .4);
+        }
+
+        .metric-name { font-size: 11px; font-weight: 700; color: var(--muted); }
+
+        .metric-value {
+            margin-top: 8px;
+            font-size: 26px;
+            font-weight: 800;
+            color: var(--blue);
+        }
+
+        .metric-card .mini-track { margin-top: 12px; }
+
+        .metric-card .mini-fill {
+            background: linear-gradient(90deg, #4285f4, #34a853);
+        }
+
+        .metric-hint {
+            margin-top: 10px;
+            font-size: 10px;
+            line-height: 1.6;
+            color: var(--muted);
+        }
+
+        .matrix-title { margin-bottom: 12px; font-size: 13px; font-weight: 750; }
+
+        .matrix {
+            display: grid;
+            grid-template-columns: 78px 1fr 1fr;
+            gap: 8px;
+            align-items: stretch;
+        }
+
+        .matrix-head, .matrix-side {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            text-align: center;
+            font-size: 10px;
+            font-weight: 700;
+            color: var(--muted);
+        }
+
+        .matrix-cell {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 84px;
+            padding: 10px 6px;
+            text-align: center;
+            border: 1px solid var(--border);
+            border-radius: 13px;
+            transition: transform .25s;
+        }
+
+        .matrix-cell:hover { transform: scale(1.04); }
+
+        .matrix-cell strong { font-size: 24px; font-weight: 800; }
+        .matrix-cell span { margin-top: 4px; font-size: 10px; font-weight: 650; }
+
+        .matrix-cell.good {
+            background: var(--green-soft);
+            color: var(--green);
+            border-color: rgba(24, 128, 56, .25);
+        }
+
+        .matrix-cell.bad {
+            background: var(--red-soft);
+            color: var(--red);
+            border-color: rgba(217, 48, 37, .25);
+        }
+
+        /* ---------- Tabs ---------- */
+        .tabs {
+            position: sticky;
+            top: 88px;
+            z-index: 30;
+            display: flex;
+            gap: 6px;
+            width: fit-content;
+            max-width: 100%;
+            margin: 0 auto 26px;
+            padding: 6px;
+            overflow-x: auto;
+            background: var(--glass);
+            -webkit-backdrop-filter: blur(16px) saturate(1.5);
+            backdrop-filter: blur(16px) saturate(1.5);
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            box-shadow: var(--shadow);
+        }
+
+        .tab-button {
+            padding: 10px 17px;
+            border: none;
+            border-radius: 11px;
+            background: transparent;
+            color: var(--muted);
+            font-size: 12px;
+            font-weight: 700;
+            white-space: nowrap;
+            cursor: pointer;
+            transition: color .2s, background .2s, transform .2s, box-shadow .2s;
+        }
+
+        .tab-button:hover:not(.active) { color: var(--text); background: var(--soft); }
+
+        .tab-button.active {
+            background: linear-gradient(135deg, #4285f4, #2f6fe4);
+            color: #ffffff;
+            box-shadow: 0 6px 16px rgba(66, 133, 244, .4);
+        }
+
+        body.dark .tab-button.active {
+            background: linear-gradient(135deg, #8ab4f8, #669df6);
+            color: #10141d;
+        }
+
+        .tab-panel { display: none; }
+        .tab-panel.active { display: block; animation: tabIn .4s ease; }
+
+        /* ---------- Shared pieces ---------- */
+        .badge {
+            display: inline-block;
+            padding: 5px 10px;
+            border-radius: 8px;
+            font-size: 11px;
+            font-weight: 750;
+            white-space: nowrap;
+        }
+
+        .badge.safe, .badge.low { background: var(--green-soft); color: var(--green); }
+        .badge.caution, .badge.medium { background: var(--amber-soft); color: var(--amber); }
+        .badge.danger, .badge.high, .badge.critical { background: var(--red-soft); color: var(--red); }
+
+        .upload-row {
+            display: flex;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 10px;
+            margin-top: 12px;
+        }
+
+        .upload-label { display: inline-block; }
+
+        .file-name { font-size: 11px; color: var(--muted); overflow-wrap: anywhere; }
+
+        .file-clear {
+            border: none;
+            background: transparent;
+            color: var(--red);
+            font-size: 12px;
+            font-weight: 700;
+            cursor: pointer;
+        }
+
+        .feedback {
+            display: flex;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 8px;
+            margin-top: 16px;
+            padding: 12px 14px;
+            background: var(--soft);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+        }
+
+        .feedback-q { margin-right: auto; font-size: 11px; font-weight: 700; }
+
+        .feedback-btn {
+            padding: 7px 12px;
+            border: 1px solid var(--border);
+            border-radius: 9px;
+            background: var(--surface);
+            color: var(--text);
+            font-size: 11px;
+            font-weight: 700;
+            cursor: pointer;
+            transition: transform .2s, border-color .2s, color .2s;
+        }
+
+        .feedback-btn:hover:not(:disabled) {
+            border-color: var(--blue);
+            color: var(--blue);
+            transform: translateY(-2px);
+        }
+
+        .feedback-btn:disabled { opacity: .5; cursor: default; }
+        .feedback-status { width: 100%; font-size: 11px; color: var(--muted); }
+
+        .advice-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(270px, 1fr));
+            gap: 12px;
+        }
+
+        .advice-card {
+            display: flex;
+            gap: 12px;
+            padding: 15px;
+            background: var(--soft);
+            border: 1px solid var(--border);
+            border-left: 4px solid var(--blue);
+            border-radius: 13px;
+            transition: transform .25s, box-shadow .25s;
+        }
+
+        .advice-card:hover { transform: translateY(-3px); box-shadow: var(--shadow-sm); }
+
+        .advice-card.bad { border-left-color: var(--red); }
+        .advice-card.warn { border-left-color: #f9ab00; }
+        .advice-card.good { border-left-color: #34a853; }
+
+        .advice-icon { font-size: 22px; line-height: 1.2; }
+        .advice-title { font-size: 12px; font-weight: 750; }
+        .advice-text { margin-top: 5px; font-size: 11px; line-height: 1.7; color: var(--muted); }
+
+        .explain-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 26px;
+            margin-top: 20px;
+        }
+
+        .explain-h { margin-bottom: 12px; font-size: 12px; font-weight: 750; }
+        .explain-h.spam { color: var(--red); }
+        .explain-h.ham { color: var(--green); }
+
+        .bar-row {
+            display: grid;
+            grid-template-columns: 105px 1fr 42px;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 10px;
+            font-size: 11px;
+            font-weight: 650;
+        }
+
+        .bar-word { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .bar-weight { text-align: right; color: var(--muted); font-size: 10px; }
+
+        .link-list { display: grid; gap: 10px; }
+
+        .link-row {
+            display: flex;
+            align-items: flex-start;
+            justify-content: space-between;
+            gap: 14px;
+            padding: 14px;
+            background: var(--soft);
+            border: 1px solid var(--border);
+            border-radius: 13px;
+            transition: transform .25s, box-shadow .25s, border-color .25s;
+        }
+
+        .link-row:hover {
+            transform: translateY(-2px);
+            box-shadow: var(--shadow-sm);
+            border-color: rgba(66, 133, 244, .4);
+        }
+
+        .link-main { min-width: 0; }
+        .link-url { font-size: 12px; font-weight: 700; overflow-wrap: anywhere; }
+        .link-host { margin-top: 3px; font-size: 10px; color: var(--muted); }
+        .link-row .word-tags { margin-top: 9px; }
+
+        .header-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+            gap: 12px;
+            margin-bottom: 18px;
+        }
+
+        .header-field {
+            padding: 12px 14px;
+            background: var(--soft);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+        }
+
+        .header-field span {
+            display: block;
+            font-size: 10px;
+            font-weight: 700;
+            color: var(--muted);
+        }
+
+        .header-field strong {
+            display: block;
+            margin-top: 5px;
+            font-size: 12px;
+            overflow-wrap: anywhere;
+        }
+
+        .finding {
+            display: flex;
+            align-items: flex-start;
+            gap: 10px;
+            padding: 10px 0;
+            border-top: 1px solid var(--border);
+            font-size: 12px;
+            line-height: 1.6;
+        }
+
+        .finding-mark {
+            width: 22px;
+            height: 22px;
+            flex-shrink: 0;
+            display: grid;
+            place-items: center;
+            border-radius: 50%;
+            font-size: 12px;
+            font-weight: 800;
+        }
+
+        .finding.bad .finding-mark { background: var(--red-soft); color: var(--red); }
+        .finding.warn .finding-mark { background: var(--amber-soft); color: var(--amber); }
+        .finding.ok .finding-mark { background: var(--green-soft); color: var(--green); }
+
+        .upload-box {
+            display: flex;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 12px;
+            padding: 20px;
+            background: var(--soft);
+            border: 1.5px dashed var(--border);
+            border-radius: 14px;
+            transition: border-color .2s, background .2s;
+        }
+
+        .upload-box:hover { border-color: var(--blue); background: var(--surface); }
+
+        .table-wrap {
+            max-height: 430px;
+            overflow: auto;
+            border: 1px solid var(--border);
+            border-radius: 13px;
+        }
+
+        .data-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+
+        .data-table th {
+            position: sticky;
+            top: 0;
+            padding: 11px 12px;
+            text-align: left;
+            font-size: 10px;
+            font-weight: 750;
+            color: var(--muted);
+            background: var(--soft);
+            border-bottom: 1px solid var(--border);
+            white-space: nowrap;
+        }
+
+        .data-table td {
+            padding: 11px 12px;
+            border-bottom: 1px solid var(--border);
+            vertical-align: middle;
+            transition: background .2s;
+        }
+
+        .data-table tbody tr:hover td { background: var(--soft); }
+        .data-table tr:last-child td { border-bottom: none; }
+        .cell-message { min-width: 220px; max-width: 420px; overflow-wrap: anywhere; line-height: 1.6; }
+        .cell-muted { color: var(--muted); white-space: nowrap; }
+
+        .batch-split {
+            display: grid;
+            grid-template-columns: 240px 1fr;
+            gap: 24px;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+
+        .donut-container { position: relative; height: 220px; width: 100%; }
+
+        .toolbar {
+            display: flex;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 10px;
+            margin-bottom: 14px;
+        }
+
+        .search-input {
+            flex: 1;
+            min-width: 180px;
+            min-height: 40px;
+            padding: 0 14px;
+            border: 1.5px solid var(--border);
+            border-radius: 11px;
+            outline: none;
+            background: var(--soft);
+            color: var(--text);
+            font-size: 12px;
+            transition: border-color .2s, box-shadow .2s;
+        }
+
+        .search-input:focus {
+            border-color: var(--blue);
+            box-shadow: 0 0 0 4px rgba(66, 133, 244, .14);
+        }
+
+        .chip {
+            padding: 9px 13px;
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            background: var(--surface);
+            color: var(--text);
+            font-size: 11px;
+            font-weight: 700;
+            cursor: pointer;
+            transition: transform .2s, border-color .2s;
+        }
+
+        .chip:hover:not(.active) { border-color: var(--blue); transform: translateY(-2px); }
+
+        .chip.active {
+            background: linear-gradient(135deg, #4285f4, #2f6fe4);
+            border-color: transparent;
+            color: #ffffff;
+            box-shadow: 0 6px 14px rgba(66, 133, 244, .35);
+        }
+
+        body.dark .chip.active {
+            background: linear-gradient(135deg, #8ab4f8, #669df6);
+            color: #10141d;
+        }
+
+        .small-button {
+            padding: 6px 10px;
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            background: var(--surface);
+            color: var(--text);
+            font-size: 11px;
+            font-weight: 700;
+            cursor: pointer;
+            white-space: nowrap;
+            text-decoration: none;
+            transition: transform .2s, border-color .2s, color .2s;
+        }
+
+        .small-button:hover { border-color: var(--blue); color: var(--blue); transform: translateY(-1px); }
+        .small-button.danger:hover { border-color: var(--red); color: var(--red); }
+
+        .compare-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 24px;
+            margin-top: 22px;
+        }
+
+        .compare-chart { position: relative; height: 290px; }
+        .compare-title { margin-bottom: 12px; font-size: 13px; font-weight: 750; }
+
+        .best-pill {
+            margin-left: 8px;
+            padding: 3px 8px;
+            border-radius: 20px;
+            background: var(--green-soft);
+            color: var(--green);
+            font-size: 9px;
+            font-weight: 800;
+        }
+
+        .api-grid { display: grid; gap: 22px; }
+        .api-block h4 { margin-bottom: 10px; font-size: 13px; }
+
+        .code {
+            padding: 16px;
+            overflow-x: auto;
+            background: #14181f;
+            color: #e6edf7;
+            border-radius: 12px;
+            border: 1px solid rgba(255, 255, 255, .06);
+            box-shadow: inset 0 1px 0 rgba(255, 255, 255, .04);
+            font-family: Consolas, "SFMono-Regular", Menlo, monospace;
+            font-size: 12px;
+            line-height: 1.7;
+            white-space: pre;
+        }
+
+        .method {
+            display: inline-block;
+            min-width: 48px;
+            padding: 3px 7px;
+            border-radius: 6px;
+            text-align: center;
+            font-size: 10px;
+            font-weight: 800;
+        }
+
+        .method.get { background: var(--green-soft); color: var(--green); }
+        .method.post { background: #e8f0fe; color: #1967d2; }
+        body.dark .method.post { background: #263b5c; color: #aecbfa; }
+
+        code.inline {
+            padding: 2px 6px;
+            background: var(--soft);
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            font-family: Consolas, Menlo, monospace;
+            font-size: 11px;
+        }
+
+        .retrain-steps { margin-top: 12px; padding-left: 18px; font-size: 12px; line-height: 2; color: var(--muted); }
+
+        .to-top {
+            position: fixed;
+            right: 22px;
+            bottom: 22px;
+            z-index: 50;
+            width: 46px;
+            height: 46px;
+            border: none;
+            border-radius: 14px;
+            background: linear-gradient(135deg, #4285f4, #34a853);
+            color: #ffffff;
+            font-size: 20px;
+            font-weight: 800;
+            cursor: pointer;
+            box-shadow: 0 10px 24px rgba(66, 133, 244, .45);
+            opacity: 0;
+            transform: translateY(14px) scale(.9);
+            pointer-events: none;
+            transition: opacity .25s, transform .25s;
+        }
+
+        .to-top.show { opacity: 1; transform: none; pointer-events: auto; }
+        .to-top:hover { transform: translateY(-3px) scale(1.05); }
+
+        /* ---------- Animations ---------- */
+        @keyframes drift {
+            from { transform: translate3d(0, 0, 0) scale(1); }
+            to { transform: translate3d(-18px, 14px, 0) scale(1.05); }
+        }
+
+        @keyframes riseIn {
+            from { opacity: 0; transform: translateY(18px); }
+            to { opacity: 1; transform: none; }
+        }
+
+        @keyframes tabIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+
+        @keyframes popIn {
+            from { opacity: 0; transform: scale(.96); }
+            to { opacity: 1; transform: none; }
+        }
+
+        @keyframes shimmer {
+            0% { background-position: 0% 50%; }
+            50% { background-position: 100% 50%; }
+            100% { background-position: 0% 50%; }
+        }
+
+        @keyframes eyebrowGlow {
+            0%, 100% { box-shadow: 0 6px 16px rgba(66, 133, 244, .12); }
+            50% { box-shadow: 0 6px 22px rgba(66, 133, 244, .34); }
+        }
+
+        @keyframes sheen {
+            to { transform: translateX(100%); }
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        @keyframes floaty {
+            0%, 100% { transform: translateY(0); }
+            50% { transform: translateY(-8px); }
+        }
+
+        @keyframes pulseRed {
+            0% { box-shadow: 0 0 0 0 rgba(217, 48, 37, .45); }
+            70%, 100% { box-shadow: 0 0 0 14px rgba(217, 48, 37, 0); }
+        }
+
+        @keyframes pulseGreen {
+            0% { box-shadow: 0 0 0 0 rgba(24, 128, 56, .45); }
+            70%, 100% { box-shadow: 0 0 0 14px rgba(24, 128, 56, 0); }
+        }
+
+        @media (max-width: 760px) {
+            .topbar { padding: 0 18px; }
+            .main { padding: 32px 14px 25px; }
+            .workspace { grid-template-columns: 1fr; }
+            .panel-header, .panel-body { padding: 18px; }
+        }
+
+        @media (max-width: 900px) {
+            .threat-layout { grid-template-columns: 1fr; }
+            .perf-layout { grid-template-columns: 1fr; }
+            .explain-grid, .compare-grid, .batch-split { grid-template-columns: 1fr; }
+        }
+
+        @media (max-width: 480px) {
+            .metric-grid { grid-template-columns: 1fr; }
+            .bar-row { grid-template-columns: 85px 1fr 38px; }
+            .to-top { right: 14px; bottom: 14px; }
+        }
+
+        @media (prefers-reduced-motion: reduce) {
+            *, *::before, *::after {
+                animation: none !important;
+                transition-duration: .01ms !important;
+            }
+            html { scroll-behavior: auto; }
+        }
+
+        /* ===== Stack panels vertically + larger sizes ===== */
+
+        /* Results now appear BELOW the input panel */
+        .workspace {
+            grid-template-columns: 1fr;
+            gap: 26px;
+        }
+
+        .main { max-width: 980px; padding: 50px 24px 40px; }
+
+        /* Header + tabs */
+        .topbar { height: 84px; }
+        .brand-icon { width: 50px; height: 50px; font-size: 26px; }
+        .brand-name { font-size: 23px; }
+        .subtitle { font-size: 13px; }
+        .theme-button { width: 50px; height: 50px; font-size: 23px; }
+        .tabs { top: 98px; }
+        .tab-button { padding: 12px 20px; font-size: 14.5px; }
+
+        /* Hero */
+        .eyebrow { font-size: 13px; padding: 9px 17px; }
+        .hero p { font-size: 16px; max-width: 650px; }
+        .hero-chip { font-size: 13px; padding: 9px 16px; }
+
+        /* Panels */
+        .panel-header, .panel-body { padding: 28px; }
+        .panel-title { font-size: 19px; }
+        .title-icon { width: 42px; height: 42px; font-size: 18px; }
+        .description { font-size: 14.5px; }
+
+        /* Input */
+        .field-label { font-size: 15px; }
+        textarea { font-size: 16px; min-height: 230px; padding: 18px 18px 40px; }
+        .char-count { font-size: 12px; }
+        .examples-label { font-size: 13px; }
+        .example-button { font-size: 13.5px; padding: 10px 15px; }
+        .analyze-button { min-height: 58px; font-size: 16px; }
+        .file-name { font-size: 13px; }
+
+        /* Results */
+        .result-label { font-size: 12px; }
+        .result-symbol { width: 54px; height: 54px; font-size: 25px; }
+        .result-value { font-size: 25px; }
+        .result-caption { font-size: 13.5px; }
+        .confidence-top { font-size: 15px; }
+        .progress-track { height: 11px; }
+        .note { font-size: 12.5px; }
+        .action-button { min-height: 52px; font-size: 14.5px; }
+        .feedback-q { font-size: 14px; }
+        .feedback-btn { font-size: 13.5px; padding: 9px 15px; }
+        .feedback-status { font-size: 13px; }
+        .section-heading h3 { font-size: 16px; }
+        .section-heading span { font-size: 12.5px; }
+        .highlighted-message { font-size: 15px; padding: 18px; }
+        .word-tag { font-size: 13.5px; padding: 7px 12px; }
+        .empty-chart, .error-message { font-size: 14.5px; }
+        .chart-container { height: 270px; }
+        .empty-state h3 { font-size: 18px; }
+        .empty-state p { font-size: 14.5px; max-width: 300px; }
+
+        /* Lower sections */
+        .advice-title { font-size: 14.5px; }
+        .advice-text { font-size: 13.5px; }
+        .threat-level { font-size: 17px; }
+        .threat-item-top { font-size: 14px; }
+        .threat-item-top span:last-child { font-size: 13px; }
+        .explain-h { font-size: 14.5px; }
+        .bar-row { font-size: 13.5px; grid-template-columns: 120px 1fr 48px; }
+        .link-url { font-size: 14px; }
+        .link-host { font-size: 12px; }
+        .badge { font-size: 12.5px; }
+        .finding, .header-field strong { font-size: 14px; }
+        .header-field span { font-size: 11.5px; }
+
+        /* Tables, stats, misc */
+        .data-table { font-size: 14px; }
+        .data-table th { font-size: 12px; }
+        .stat-number { font-size: 30px; }
+        .stat-label { font-size: 13px; }
+        .metric-name { font-size: 13px; }
+        .metric-value { font-size: 30px; }
+        .metric-hint { font-size: 12px; }
+        .bottom-info { font-size: 12.5px; }
+        footer { font-size: 12.5px; }
+        .search-input, .chip, .small-button { font-size: 13.5px; }
+        .code { font-size: 13.5px; }
+    </style>
+</head>
+
+<body data-tab="{{ active_tab|default('analyze') }}">
+    {% set tab = active_tab|default('analyze') %}
+
+    <header class="topbar">
+        <div class="brand">
+            <div class="brand-icon">M</div>
+            <div>
+                <div class="brand-name">Mail<span>Guard</span> AI</div>
+                <div class="subtitle">Email & SMS Protection</div>
+            </div>
+        </div>
+
+        <button class="theme-button" id="themeToggle" type="button"
+                aria-label="Toggle dark mode">☾</button>
+    </header>
+
+    <main class="main">
+        <section class="hero">
+            <div class="eyebrow">✦ AI-POWERED MESSAGE ANALYSIS</div>
+            <h1>
+                <span class="gradient-line gradient-green">Know what's real.</span><br>
+                <span class="gradient-line gradient-red">Stop what isn't.</span>
+            </h1>
+            <p>
+                Analyze suspicious emails and text messages.
+                View the prediction, confidence score, suspicious words,
+                and their frequency in one place.
+            </p>
+            <div class="hero-chips">
+                <span class="hero-chip">⚡ Real-time detection</span>
+                <span class="hero-chip">🛡 Threat radar</span>
+                <span class="hero-chip">💡 Explainable AI</span>
+                <span class="hero-chip">📎 Email header checks</span>
+            </div>
+        </section>
+
+        <nav class="tabs" role="tablist" aria-label="Sections">
+            <button class="tab-button{% if tab == 'analyze' %} active{% endif %}" type="button" data-tab="analyze">✉ Analyze</button>
+            <button class="tab-button{% if tab == 'batch' %} active{% endif %}" type="button" data-tab="batch">▤ Batch</button>
+            <button class="tab-button{% if tab == 'history' %} active{% endif %}" type="button" data-tab="history">◷ History</button>
+            <button class="tab-button{% if tab == 'dashboard' %} active{% endif %}" type="button" data-tab="dashboard">◧ Dashboard</button>
+            <button class="tab-button{% if tab == 'models' %} active{% endif %}" type="button" data-tab="models">⚖ Models</button>
+            <button class="tab-button{% if tab == 'api' %} active{% endif %}" type="button" data-tab="api">⌘ API</button>
+        </nav>
+
+        <!-- ================= ANALYZE ================= -->
+        <div class="tab-panel{% if tab == 'analyze' %} active{% endif %}" id="tab-analyze">
+            <div class="workspace">
+                <section class="panel">
+                    <div class="panel-header">
+                        <div class="panel-title">
+                            <span class="title-icon">✉</span>
+                            Analyze a message
+                        </div>
+                        <p class="description">
+                            Paste an email or SMS below, or upload an .eml file to also check the sender.
+                        </p>
+                    </div>
+
+                    <div class="panel-body">
+                        <form action="/predict" method="POST" id="messageForm" enctype="multipart/form-data">
+                            <label class="field-label" for="message">Your message</label>
+
+                            <div class="textarea-wrap">
+                                <textarea id="message" name="message"
+                                    maxlength="10000" required
+                                    placeholder="Paste your email or SMS here...">{{ message or '' }}</textarea>
+                                <div class="char-count">
+                                    <span id="charCount">0</span>/10000
+                                </div>
+                            </div>
+
+                            <div class="examples">
+                                <div class="examples-label">TRY A SAMPLE</div>
+                                <div class="example-buttons">
+                                    <button class="example-button" type="button"
+                                        data-message="Congratulations! You have won a FREE prize. Click here to claim your reward now!">
+                                        ⚠ Sample spam
+                                    </button>
+
+                                    <button class="example-button" type="button"
+                                        data-message="Hi, are we still meeting tomorrow at 10 AM? Please let me know.">
+                                        ✓ Sample normal
+                                    </button>
+
+                                    <button class="example-button" type="button"
+                                        data-message="URGENT: Your PayPal account is suspended. Verify your password now at http://paypa1-secure-login.xyz/verify or bit.ly/3xYzAb to avoid permanent closure!!!">
+                                        🎣 Sample phishing
+                                    </button>
+                                </div>
+                            </div>
+
+                            <div class="upload-row">
+                                <label class="example-button upload-label" for="emlFile">📎 Upload .eml email</label>
+                                <input type="file" id="emlFile" name="eml_file" accept=".eml,message/rfc822" hidden>
+                                <span class="file-name" id="emlName"></span>
+                                <button class="file-clear" type="button" id="emlClear" hidden>✕ Remove</button>
+                            </div>
+
+                            <button class="analyze-button" type="submit" id="analyzeButton">
+                                ✦ &nbsp; Analyze message &nbsp; →
+                            </button>
+                        </form>
+
+                        {% if error %}
+                        <div class="error-message">{{ error }}</div>
+                        {% endif %}
+                    </div>
+                </section>
+
+                <section class="panel">
+                    <div class="panel-header">
+                        <div class="panel-title">
+                            <span class="title-icon">◈</span>
+                            Analysis results
+                        </div>
+                        <p class="description">
+                            Prediction, confidence, and suspicious-word analysis.
+                        </p>
+                    </div>
+
+                    <div class="panel-body">
+                        {% if prediction %}
+                        {% set prediction_text = prediction|string|lower %}
+                        {% set is_spam = prediction_text == 'spam' %}
+                        {% set score = confidence_percentage|default(confidence|default(0, true), true)|float %}
+
+                        <div class="result-card {{ 'spam' if is_spam else 'safe' }}">
+                            <div class="result-label">PREDICTED CATEGORY</div>
+                            <div class="result-heading">
+                                <div class="result-symbol">
+                                    {{ '⚠' if is_spam else '✓' }}
+                                </div>
+                                <div>
+                                    <div class="result-value">{{ prediction }}</div>
+                                    <div class="result-caption">
+                                        {{ 'Potential spam detected by the model.' if is_spam else 'The model classified this as a non-spam message.' }}
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="confidence">
+                            <div class="confidence-top">
+                                <span>Model confidence</span>
+                                <span class="confidence-number">{{ "%.2f"|format(score) }}%</span>
+                            </div>
+                            <div class="progress-track">
+                                <div class="progress-fill"
+                                     data-width="{{ [[score, 100]|min, 0]|max }}"></div>
+                            </div>
+                            <p class="note">
+                                This is the model's confidence estimate, not a guarantee
+                                that the message is safe or harmful.
+                            </p>
+                        </div>
+
+                        <div class="action-row">
+                            <button class="action-button" type="button" id="speakButton"
+                                    data-speech="{{ speech_text }}">
+                                🔊 Read results aloud
+                            </button>
+                            <button class="action-button" type="button" id="pdfButton"
+                                    data-report='{{ report_data|tojson }}'>
+                                ⬇ Download PDF report
+                            </button>
+                        </div>
+
+                        <div class="feedback" id="feedback"
+                             data-message="{{ message }}" data-predicted="{{ prediction }}">
+                            <span class="feedback-q">Was this prediction correct?</span>
+                            <button class="feedback-btn" type="button" data-correct="1">👍 Yes</button>
+                            <button class="feedback-btn" type="button" data-correct="0">👎 No</button>
+                            <span class="feedback-status" id="feedbackStatus"></span>
+                        </div>
+
+                        <div class="section">
+                            <div class="section-heading">
+                                <h3>🔎 Suspicious words</h3>
+                                <span>{{ suspicious_word_count|default(0) }} occurrence(s)</span>
+                            </div>
+
+                            <div class="highlighted-message">{% for part in highlighted_parts|default([]) %}{% if part.suspicious %}<span class="spam-word">{{ part.text }}</span>{% else %}{{ part.text }}{% endif %}{% endfor %}</div>
+
+                            {% if chart_labels %}
+                            <div class="word-tags">
+                                {% for word in chart_labels %}
+                                <span class="word-tag">{{ word }} · {{ chart_counts[loop.index0] }}</span>
+                                {% endfor %}
+                            </div>
+                            {% else %}
+                            <p class="note">
+                                No words from the suspicious-word indicator list
+                                were found in this message.
+                            </p>
+                            {% endif %}
+                        </div>
+
+                        <div class="section">
+                            <div class="section-heading">
+                                <h3>📊 Spam word frequency</h3>
+                                <span>Occurrences in this message</span>
+                            </div>
+
+                            {% if chart_labels %}
+                            <div class="chart-container">
+                                <canvas id="spamChart"
+                                    data-labels='{{ chart_labels|tojson }}'
+                                    data-counts='{{ chart_counts|tojson }}'
+                                    aria-label="Bar chart of suspicious word frequencies"></canvas>
+                            </div>
+                            {% else %}
+                            <div class="empty-chart">
+                                No suspicious words to display. Try analyzing another message
+                                to see its word-frequency chart.
+                            </div>
+                            {% endif %}
+                        </div>
+
+                        {% else %}
+                        <div class="empty-state">
+                            <div class="empty-icon">⌕</div>
+                            <h3>Your results will appear here</h3>
+                            <p>
+                                Enter a message and click Analyze message to see
+                                its prediction, confidence, and spam-word visualization.
+                            </p>
+                        </div>
+                        {% endif %}
+                    </div>
+                </section>
+            </div>
+
+            {% if prediction and advice %}
+            <section class="panel full-panel">
+                <div class="panel-header">
+                    <div class="panel-title">
+                        <span class="title-icon">🛡</span>
+                        Safety advice
+                    </div>
+                    <p class="description">
+                        What to do next, based on the prediction, threat score, links, and sender checks.
+                    </p>
+                </div>
+
+                <div class="panel-body">
+                    <div class="advice-grid">
+                        {% for tip in advice %}
+                        <div class="advice-card {{ tip.level }}">
+                            <div class="advice-icon">{{ tip.icon }}</div>
+                            <div>
+                                <div class="advice-title">{{ tip.title }}</div>
+                                <p class="advice-text">{{ tip.text }}</p>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+            </section>
+            {% endif %}
+
+            {% if prediction and threat %}
+            <section class="panel full-panel">
+                <div class="panel-header">
+                    <div class="panel-title">
+                        <span class="title-icon">◉</span>
+                        Smart Threat Radar
+                    </div>
+                    <p class="description">
+                        Rule-based analysis of urgent wording, suspicious links, phishing terms,
+                        and scam language, combined into a threat score from 0 to 100.
+                    </p>
+                </div>
+
+                <div class="panel-body">
+                    <div class="threat-layout threat-{{ threat.level_key }}">
+                        <div class="threat-left">
+                            <div class="threat-ring" id="threatRing" data-score="{{ threat.score }}">
+                                <div class="threat-ring-inner">
+                                    <div class="threat-score">{{ threat.score }}</div>
+                                    <div class="threat-outof">/ 100</div>
+                                </div>
+                            </div>
+                            <div class="threat-level">{{ threat.level }} threat</div>
+                            <p class="note">Independent of the ML prediction.</p>
+                        </div>
+
+                        <div class="radar-container">
+                            <canvas id="threatChart"
+                                data-labels='{{ threat.radar_labels|tojson }}'
+                                data-values='{{ threat.radar_values|tojson }}'
+                                data-level="{{ threat.level_key }}"
+                                aria-label="Radar chart of threat indicators"></canvas>
+                        </div>
+
+                        <div class="threat-breakdown">
+                            {% for category in threat.categories %}
+                            <div class="threat-item">
+                                <div class="threat-item-top">
+                                    <span>{{ category.name }}</span>
+                                    <span>{{ category.points }} / {{ category.cap }} pts</span>
+                                </div>
+                                <div class="mini-track">
+                                    <div class="mini-fill" data-fill="{{ category.percent }}"></div>
+                                </div>
+                                {% if category.hits %}
+                                <div class="word-tags">
+                                    {% for hit in category.hits %}
+                                    <span class="word-tag">{{ hit }}</span>
+                                    {% endfor %}
+                                </div>
+                                {% else %}
+                                <p class="note">Nothing detected.</p>
+                                {% endif %}
+                            </div>
+                            {% endfor %}
+                        </div>
+                    </div>
+                </div>
+            </section>
+            {% endif %}
+
+            {% if prediction %}
+            <section class="panel full-panel">
+                <div class="panel-header">
+                    <div class="panel-title">
+                        <span class="title-icon">💡</span>
+                        Why was this flagged?
+                    </div>
+                    <p class="description">
+                        The words that pushed the SVM toward spam or ham, taken from the model's own learned weights.
+                    </p>
+                </div>
+
+                <div class="panel-body">
+                    {% if explanation %}
+                    <div class="confidence-top">
+                        <span>Evidence balance</span>
+                        <span class="confidence-number">{{ explanation.spam_share }}% spam signals</span>
+                    </div>
+                    <div class="split-bar">
+                        <div class="split-seg spam" data-fill="{{ explanation.spam_share }}"></div>
+                        <div class="split-seg ham" data-fill="{{ 100 - explanation.spam_share }}"></div>
+                    </div>
+
+                    <div class="explain-grid">
+                        <div>
+                            <div class="explain-h spam">Pushed toward spam</div>
+                            {% for item in explanation.spam %}
+                            <div class="bar-row">
+                                <span class="bar-word">{{ item.word }}</span>
+                                <div class="mini-track"><div class="mini-fill red" data-fill="{{ item.percent }}"></div></div>
+                                <span class="bar-weight">{{ "%.2f"|format(item.weight) }}</span>
+                            </div>
+                            {% else %}
+                            <p class="note">No words pushed toward spam.</p>
+                            {% endfor %}
+                        </div>
+
+                        <div>
+                            <div class="explain-h ham">Pushed toward ham</div>
+                            {% for item in explanation.ham %}
+                            <div class="bar-row">
+                                <span class="bar-word">{{ item.word }}</span>
+                                <div class="mini-track"><div class="mini-fill green" data-fill="{{ item.percent }}"></div></div>
+                                <span class="bar-weight">{{ "%.2f"|format(item.weight) }}</span>
+                            </div>
+                            {% else %}
+                            <p class="note">No words pushed toward ham.</p>
+                            {% endfor %}
+                        </div>
+                    </div>
+
+                    <p class="note">
+                        Bars show relative influence. Words the model never saw in training have no effect.
+                    </p>
+                    {% else %}
+                    <div class="empty-chart">
+                        An explanation isn't available for this message or model type.
+                    </div>
+                    {% endif %}
+                </div>
+            </section>
+
+            <section class="panel full-panel">
+                <div class="panel-header">
+                    <div class="panel-title">
+                        <span class="title-icon">🔗</span>
+                        Link inspector
+                    </div>
+                    <p class="description">
+                        Every link in the message, checked for shorteners, look-alike domains, and other warning signs.
+                    </p>
+                </div>
+
+                <div class="panel-body">
+                    {% if links and links.rows %}
+                    <div class="link-list">
+                        {% for row in links.rows %}
+                        <div class="link-row">
+                            <div class="link-main">
+                                <div class="link-url">{{ row.url }}</div>
+                                <div class="link-host">{{ row.host }}</div>
+                                {% if row.flags %}
+                                <div class="word-tags">
+                                    {% for flag in row.flags %}
+                                    <span class="word-tag">{{ flag }}</span>
+                                    {% endfor %}
+                                </div>
+                                {% endif %}
+                            </div>
+                            <span class="badge {{ row.level_key }}">{{ row.level }}</span>
+                        </div>
+                        {% endfor %}
+                    </div>
+                    <p class="note">
+                        {{ links.total }} link(s) checked · {{ links.dangerous }} dangerous · {{ links.caution }} need caution.
+                        This is a rule-based check and does not visit the links.
+                    </p>
+                    {% else %}
+                    <div class="empty-chart">No links were found in this message.</div>
+                    {% endif %}
+                </div>
+            </section>
+            {% endif %}
+
+            {% if prediction and header_report %}
+            <section class="panel full-panel">
+                <div class="panel-header">
+                    <div class="panel-title">
+                        <span class="title-icon">✉</span>
+                        Email header analysis
+                    </div>
+                    <p class="description">
+                        Sender checks from the uploaded .eml file.
+                    </p>
+                </div>
+
+                <div class="panel-body">
+                    <div class="section-heading">
+                        <h3>Sender verdict</h3>
+                        <span class="badge {{ header_report.verdict_key }}">{{ header_report.verdict }}</span>
+                    </div>
+
+                    <div class="header-grid">
+                        <div class="header-field"><span>FROM NAME</span><strong>{{ header_report.from_name }}</strong></div>
+                        <div class="header-field"><span>FROM ADDRESS</span><strong>{{ header_report.from_addr }}</strong></div>
+                        <div class="header-field"><span>REPLY-TO</span><strong>{{ header_report.reply_to }}</strong></div>
+                        <div class="header-field"><span>RETURN-PATH</span><strong>{{ header_report.return_path }}</strong></div>
+                        <div class="header-field"><span>SUBJECT</span><strong>{{ header_report.subject }}</strong></div>
+                    </div>
+
+                    {% for finding in header_report.findings %}
+                    <div class="finding {{ finding.level }}">
+                        <span class="finding-mark">{{ '✕' if finding.level == 'bad' else ('!' if finding.level == 'warn' else '✓') }}</span>
+                        <span>{{ finding.text }}</span>
+                    </div>
+                    {% endfor %}
+                </div>
+            </section>
+            {% endif %}
+        </div>
+
+        <!-- ================= BATCH ================= -->
+        <div class="tab-panel{% if tab == 'batch' %} active{% endif %}" id="tab-batch">
+            <section class="panel">
+                <div class="panel-header">
+                    <div class="panel-title">
+                        <span class="title-icon">▤</span>
+                        Batch analysis
+                    </div>
+                    <p class="description">
+                        Upload a CSV and classify up to 2,000 messages at once.
+                        The file needs a column named message, text, body, or v2.
+                    </p>
+                </div>
+
+                <div class="panel-body">
+                    <form action="/batch" method="POST" enctype="multipart/form-data" id="batchForm">
+                        <div class="upload-box">
+                            <label class="example-button upload-label" for="csvFile">📄 Choose a CSV file</label>
+                            <input type="file" id="csvFile" name="csv_file" accept=".csv,text/csv" hidden>
+                            <span class="file-name" id="csvName">No file selected</span>
+                        </div>
+
+                        <button class="analyze-button" type="submit" id="batchButton">
+                            ✦ &nbsp; Analyze file &nbsp; →
+                        </button>
+                    </form>
+
+                    {% if batch_error %}
+                    <div class="error-message">{{ batch_error }}</div>
+                    {% endif %}
+                </div>
+            </section>
+
+            {% if batch %}
+            <section class="dashboard full-panel">
+                <div class="stats-grid">
+                    <div class="stat-card">
+                        <div class="stat-icon blue">▤</div>
+                        <div>
+                            <div class="stat-number" data-count="{{ batch.total }}">0</div>
+                            <div class="stat-label">Messages analyzed</div>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon red">⚠</div>
+                        <div>
+                            <div class="stat-number" data-count="{{ batch.spam }}">0</div>
+                            <div class="stat-label">Classified as spam</div>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon green">✓</div>
+                        <div>
+                            <div class="stat-number" data-count="{{ batch.ham }}">0</div>
+                            <div class="stat-label">Classified as ham</div>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon amber">!</div>
+                        <div>
+                            <div class="stat-number" data-count="{{ batch.high_threat }}">0</div>
+                            <div class="stat-label">High threat score</div>
+                        </div>
+                    </div>
+                </div>
+
+                <section class="panel full-panel">
+                    <div class="panel-header">
+                        <div class="panel-title">
+                            <span class="title-icon">◧</span>
+                            Results for {{ batch.filename }}
+                        </div>
+                        <p class="description">
+                            Spam rate {{ batch.spam_rate }}%.
+                            {% if batch.accuracy is not none %}
+                            Agreement with the labels in your file: {{ batch.accuracy }}%.
+                            {% endif %}
+                            {% if batch.truncated %}
+                            Only the first 2,000 rows were analyzed.
+                            {% endif %}
+                        </p>
+                    </div>
+
+                    <div class="panel-body">
+                        <div class="batch-split">
+                            <div class="donut-container">
+                                <canvas id="batchChart"
+                                    data-spam="{{ batch.spam }}" data-ham="{{ batch.ham }}"
+                                    aria-label="Doughnut chart of spam versus ham"></canvas>
+                            </div>
+
+                            <div>
+                                <div class="section-heading">
+                                    <h3>Showing the first {{ batch.shown }} rows</h3>
+                                </div>
+                                <p class="note" style="margin-top:0">
+                                    Download the CSV to get the prediction, confidence, and threat score for every row.
+                                </p>
+                                <div class="action-row">
+                                    <a class="action-button" href="/batch/download/{{ batch.token }}">⬇ Download results CSV</a>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="table-wrap">
+                            <table class="data-table">
+                                <thead>
+                                    <tr>
+                                        <th>#</th>
+                                        <th>Message</th>
+                                        <th>Verdict</th>
+                                        <th>Confidence</th>
+                                        <th>Threat</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for row in batch.rows %}
+                                    <tr>
+                                        <td class="cell-muted">{{ row.n }}</td>
+                                        <td class="cell-message">{{ row.preview }}</td>
+                                        <td><span class="badge {{ 'danger' if row.label == 'Spam' else 'safe' }}">{{ row.label }}</span></td>
+                                        <td class="cell-muted">{{ row.confidence }}%</td>
+                                        <td><span class="badge {{ row.level_key }}">{{ row.threat }}</span></td>
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </section>
+            </section>
+            {% endif %}
+        </div>
+
+        <!-- ================= HISTORY ================= -->
+        <div class="tab-panel{% if tab == 'history' %} active{% endif %}" id="tab-history">
+            <section class="panel">
+                <div class="panel-header">
+                    <div class="panel-title">
+                        <span class="title-icon">◷</span>
+                        Scan history
+                    </div>
+                    <p class="description">
+                        Your most recent analyses (up to 200). Search, filter, re-analyze, or export them.
+                    </p>
+                </div>
+
+                <div class="panel-body">
+                    {% if history %}
+                    <div class="toolbar">
+                        <input class="search-input" type="search" id="historySearch"
+                               placeholder="Search messages...">
+                        <button class="chip active" type="button" data-filter="all">All</button>
+                        <button class="chip" type="button" data-filter="spam">Spam</button>
+                        <button class="chip" type="button" data-filter="ham">Ham</button>
+                        <a class="small-button" href="/history/export">⬇ Export CSV</a>
+                        <form action="/history/clear" method="POST" id="historyClearForm">
+                            <button class="small-button danger" type="submit">🗑 Clear</button>
+                        </form>
+                    </div>
+
+                    <div class="table-wrap">
+                        <table class="data-table">
+                            <thead>
+                                <tr>
+                                    <th>Time</th>
+                                    <th>Message</th>
+                                    <th>Verdict</th>
+                                    <th>Confidence</th>
+                                    <th>Threat</th>
+                                    <th>Source</th>
+                                    <th></th>
+                                </tr>
+                            </thead>
+                            <tbody id="historyBody">
+                                {% for item in history %}
+                                <tr class="history-row" data-label="{{ item.label|lower }}"
+                                    data-search="{{ item.preview|lower }}">
+                                    <td class="cell-muted">{{ item.time }}</td>
+                                    <td class="cell-message">{{ item.preview }}</td>
+                                    <td><span class="badge {{ 'danger' if item.label == 'Spam' else 'safe' }}">{{ item.label }}</span></td>
+                                    <td class="cell-muted">{{ item.confidence }}%</td>
+                                    <td><span class="badge {{ item.level_key }}">{{ item.threat }}</span></td>
+                                    <td class="cell-muted">{{ item.source }}</td>
+                                    <td><button class="small-button reanalyze-button" type="button"
+                                                data-message="{{ item.message }}">↻ Re-analyze</button></td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                    <p class="note" id="historyCount">{{ history|length }} scan(s)</p>
+                    {% else %}
+                    <div class="empty-state">
+                        <div class="empty-icon">◷</div>
+                        <h3>No scans yet</h3>
+                        <p>Analyze a message and it will show up here.</p>
+                    </div>
+                    {% endif %}
+                </div>
+            </section>
+        </div>
+
+        <!-- ================= DASHBOARD ================= -->
+        <div class="tab-panel{% if tab == 'dashboard' %} active{% endif %}" id="tab-dashboard">
+            <section class="dashboard">
+                <div class="dash-heading">
+                    <h2>Dashboard</h2>
+                    <p>Live usage statistics and model evaluation.</p>
+                </div>
+
+                <div class="stats-grid">
+                    <div class="stat-card">
+                        <div class="stat-icon blue">✉</div>
+                        <div>
+                            <div class="stat-number" data-count="{{ stats.total }}">0</div>
+                            <div class="stat-label">Messages analyzed</div>
+                        </div>
+                    </div>
+
+                    <div class="stat-card">
+                        <div class="stat-icon red">⚠</div>
+                        <div>
+                            <div class="stat-number" data-count="{{ stats.spam }}">0</div>
+                            <div class="stat-label">Classified as spam</div>
+                        </div>
+                    </div>
+
+                    <div class="stat-card">
+                        <div class="stat-icon green">✓</div>
+                        <div>
+                            <div class="stat-number" data-count="{{ stats.ham }}">0</div>
+                            <div class="stat-label">Classified as ham</div>
+                        </div>
+                    </div>
+
+                    <div class="stat-card">
+                        <div class="stat-icon amber">%</div>
+                        <div>
+                            <div class="stat-number">{{ "%.1f"|format(stats.spam / stats.total * 100 if stats.total else 0) }}%</div>
+                            <div class="stat-label">Spam rate</div>
+                        </div>
+                    </div>
+
+                    <div class="stat-card">
+                        <div class="stat-icon blue">💬</div>
+                        <div>
+                            <div class="stat-number" data-count="{{ feedback.total }}">0</div>
+                            <div class="stat-label">Feedback received</div>
+                        </div>
+                    </div>
+
+                    <div class="stat-card">
+                        <div class="stat-icon red">✎</div>
+                        <div>
+                            <div class="stat-number" data-count="{{ feedback.wrong }}">0</div>
+                            <div class="stat-label">Corrections for retraining</div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="split-card">
+                    <div class="split-bar">
+                        <div class="split-seg spam"
+                             data-fill="{{ stats.spam / stats.total * 100 if stats.total else 0 }}"></div>
+                        <div class="split-seg ham"
+                             data-fill="{{ stats.ham / stats.total * 100 if stats.total else 0 }}"></div>
+                    </div>
+                    <div class="split-legend">
+                        <span>Spam · {{ stats.spam }}</span>
+                        <span>Ham · {{ stats.ham }}</span>
+                    </div>
+                </div>
+
+                <section class="panel full-panel">
+                    <div class="panel-header">
+                        <div class="panel-title">
+                            <span class="title-icon">◧</span>
+                            Model performance
+                        </div>
+                        <p class="description">
+                            How the spam classifier performs on a labelled test dataset.
+                        </p>
+                    </div>
+
+                    <div class="panel-body">
+                        {% if metrics %}
+                        <div class="perf-layout">
+                            <div class="metric-grid">
+                                {% for name, value, hint in [
+                                    ("Accuracy", metrics.accuracy, "Share of all messages classified correctly."),
+                                    ("Precision", metrics.precision, "Of messages flagged as spam, how many really were spam."),
+                                    ("Recall", metrics.recall, "Of all real spam messages, how many were caught."),
+                                    ("F1-score", metrics.f1, "Balance between precision and recall.")
+                                ] %}
+                                <div class="metric-card">
+                                    <div class="metric-name">{{ name }}</div>
+                                    <div class="metric-value">{{ "%.2f"|format(value) }}%</div>
+                                    <div class="mini-track">
+                                        <div class="mini-fill" data-fill="{{ value }}"></div>
+                                    </div>
+                                    <p class="metric-hint">{{ hint }}</p>
+                                </div>
+                                {% endfor %}
+                            </div>
+
+                            <div class="matrix-wrap">
+                                <div class="matrix-title">Confusion matrix</div>
+                                <div class="matrix">
+                                    <div></div>
+                                    <div class="matrix-head">Predicted Ham</div>
+                                    <div class="matrix-head">Predicted Spam</div>
+
+                                    <div class="matrix-side">Actual Ham</div>
+                                    <div class="matrix-cell good">
+                                        <strong>{{ metrics.tn }}</strong>
+                                        <span>True negatives</span>
+                                    </div>
+                                    <div class="matrix-cell bad">
+                                        <strong>{{ metrics.fp }}</strong>
+                                        <span>False positives</span>
+                                    </div>
+
+                                    <div class="matrix-side">Actual Spam</div>
+                                    <div class="matrix-cell bad">
+                                        <strong>{{ metrics.fn }}</strong>
+                                        <span>False negatives</span>
+                                    </div>
+                                    <div class="matrix-cell good">
+                                        <strong>{{ metrics.tp }}</strong>
+                                        <span>True positives</span>
+                                    </div>
+                                </div>
+                                <p class="note">
+                                    Evaluated on {{ metrics.test_size }} labelled messages
+                                    (20% test split of spam.csv). A false positive is a normal
+                                    message wrongly flagged as spam.
+                                </p>
+                            </div>
+                        </div>
+                        {% else %}
+                        <div class="empty-chart">
+                            Model metrics are unavailable. Make sure spam.csv is in the same
+                            folder as app.py and check the terminal for errors.
+                        </div>
+                        {% endif %}
+                    </div>
+                </section>
+
+                <section class="panel full-panel">
+                    <div class="panel-header">
+                        <div class="panel-title">
+                            <span class="title-icon">↻</span>
+                            Learning from feedback
+                        </div>
+                        <p class="description">
+                            The 👍 and 👎 buttons on each result are saved to feedback.csv.
+                            Retrain the model with them whenever you like.
+                        </p>
+                    </div>
+
+                    <div class="panel-body">
+                        <ol class="retrain-steps">
+                            <li>Collect corrections using the feedback buttons on the Analyze tab.</li>
+                            <li>Stop the app, then run <code class="inline">python retrain.py</code> in the project folder.</li>
+                            <li>The script compares the new model with the old one and only saves it if it is not worse.</li>
+                            <li>Start the app again to use the retrained model.</li>
+                        </ol>
+                    </div>
+                </section>
+            </section>
+        </div>
+
+        <!-- ================= MODELS ================= -->
+        <div class="tab-panel{% if tab == 'models' %} active{% endif %}" id="tab-models">
+            <section class="panel">
+                <div class="panel-header">
+                    <div class="panel-title">
+                        <span class="title-icon">⚖</span>
+                        Algorithm comparison
+                    </div>
+                    <p class="description">
+                        Naive Bayes, Logistic Regression, and SVM trained on the same split of spam.csv
+                        with the same TF-IDF features, then tested on the same unseen messages.
+                    </p>
+                </div>
+
+                <div class="panel-body">
+                    <div class="empty-chart" id="compareStatus">
+                        Training and evaluating the three models. This takes a few seconds...
+                    </div>
+
+                    <div id="compareResults" hidden>
+                        <div class="table-wrap">
+                            <table class="data-table">
+                                <thead>
+                                    <tr>
+                                        <th>Model</th>
+                                        <th>Accuracy</th>
+                                        <th>Precision</th>
+                                        <th>Recall</th>
+                                        <th>F1-score</th>
+                                        <th>ROC AUC</th>
+                                        <th>False positives</th>
+                                        <th>False negatives</th>
+                                        <th>Train time</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="compareBody"></tbody>
+                            </table>
+                        </div>
+
+                        <p class="note" id="compareSummary"></p>
+
+                        <div class="compare-grid">
+                            <div>
+                                <div class="compare-title">Metrics side by side</div>
+                                <div class="compare-chart"><canvas id="compareBars"></canvas></div>
+                            </div>
+                            <div>
+                                <div class="compare-title">ROC curves</div>
+                                <div class="compare-chart"><canvas id="compareRoc"></canvas></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+        </div>
+
+        <!-- ================= API ================= -->
+        <div class="tab-panel{% if tab == 'api' %} active{% endif %}" id="tab-api">
+            <section class="panel">
+                <div class="panel-header">
+                    <div class="panel-title">
+                        <span class="title-icon">⌘</span>
+                        REST API
+                    </div>
+                    <p class="description">
+                        Use MailGuard from other apps, scripts, or a browser extension. All responses are JSON.
+                    </p>
+                </div>
+
+                <div class="panel-body">
+                    <div class="api-grid">
+                        <div class="api-block">
+                            <h4>Endpoints</h4>
+                            <div class="table-wrap">
+                                <table class="data-table">
+                                    <tbody>
+                                        <tr><td><span class="method post">POST</span></td><td><code class="inline">/api/predict</code></td><td class="cell-muted">Classify one message, or up to 50 with "messages"</td></tr>
+                                        <tr><td><span class="method post">POST</span></td><td><code class="inline">/api/feedback</code></td><td class="cell-muted">Report whether a prediction was correct</td></tr>
+                                        <tr><td><span class="method get">GET</span></td><td><code class="inline">/api/stats</code></td><td class="cell-muted">Live usage counts</td></tr>
+                                        <tr><td><span class="method get">GET</span></td><td><code class="inline">/api/compare</code></td><td class="cell-muted">Algorithm comparison results</td></tr>
+                                        <tr><td><span class="method get">GET</span></td><td><code class="inline">/api/health</code></td><td class="cell-muted">Check that the service is running</td></tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+
+                        <div class="api-block">
+                            <h4>cURL example</h4>
+<div class="code">curl -X POST <span class="api-base">http://127.0.0.1:5000</span>/api/predict \
+  -H "Content-Type: application/json" \
+  -d '{"message": "You have won a FREE prize! Click to claim."}'</div>
+                        </div>
+
+                        <div class="api-block">
+                            <h4>Python example</h4>
+<div class="code">import requests
+
+response = requests.post(
+    "<span class="api-base">http://127.0.0.1:5000</span>/api/predict",
+    json={"message": "You have won a FREE prize! Click to claim."},
+)
+print(response.json()["prediction"])</div>
+                        </div>
+
+                        <div class="api-block">
+                            <h4>Example response</h4>
+<div class="code">{
+  "prediction": "Spam",
+  "is_spam": true,
+  "confidence": 99.1,
+  "threat": { "score": 62, "level": "High" },
+  "suspicious_words": [ { "word": "free", "count": 1 } ],
+  "links": [],
+  "explanation": {
+    "toward_spam": [ { "word": "claim", "weight": 0.4376 } ],
+    "toward_ham": []
+  }
+}</div>
+                        </div>
+
+                        <div class="api-block">
+                            <h4>Try it</h4>
+                            <textarea id="apiInput" style="min-height:110px"
+                                placeholder="Type a message to send to /api/predict..."></textarea>
+                            <button class="analyze-button" type="button" id="apiTry" style="margin-top:14px">
+                                ▶ &nbsp; Send request
+                            </button>
+                            <div class="code" id="apiOutput" style="margin-top:14px">The response will appear here.</div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+        </div>
+
+        <div class="bottom-info">
+            <span>🔒 Message analysis</span>
+            <span>✦ Machine-learning prediction</span>
+            <span>📊 Word-frequency visualization</span>
+        </div>
+    </main>
+
+    <footer>MailGuard AI · Email & SMS Spam Classifier</footer>
+
+    <button class="to-top" id="toTop" type="button" aria-label="Back to top">↑</button>
+
+    <script>
+        const body = document.body;
+        const themeToggle = document.getElementById("themeToggle");
+        const messageBox = document.getElementById("message");
+        const charCount = document.getElementById("charCount");
+        const messageForm = document.getElementById("messageForm");
+        const analyzeButton = document.getElementById("analyzeButton");
+
+        const savedTheme = localStorage.getItem("mailguard-theme");
+
+        if (savedTheme === "dark") {
+            body.classList.add("dark");
+        }
+
+        function updateThemeIcon() {
+            themeToggle.textContent =
+                body.classList.contains("dark") ? "☀" : "☾";
+        }
+
+        updateThemeIcon();
+
+        function chartTextColor() {
+            return body.classList.contains("dark") ? "#eef2fa" : "#687386";
+        }
+
+        const registeredCharts = [];
+
+        function registerChart(chart) {
+            registeredCharts.push(chart);
+            return chart;
+        }
+
+        function updateChartTheme() {
+            registeredCharts.forEach(function (chart) {
+                const scales = chart.options.scales || {};
+
+                Object.keys(scales).forEach(function (key) {
+                    const scale = scales[key];
+                    if (scale.ticks && key !== "r") scale.ticks.color = chartTextColor();
+                    if (scale.pointLabels) scale.pointLabels.color = chartTextColor();
+                    if (scale.title) scale.title.color = chartTextColor();
+                });
+
+                const plugins = chart.options.plugins || {};
+                if (plugins.legend && plugins.legend.labels) {
+                    plugins.legend.labels.color = chartTextColor();
+                }
+
+                chart.update();
+            });
+        }
+
+        themeToggle.addEventListener("click", function () {
+            body.classList.toggle("dark");
+
+            localStorage.setItem(
+                "mailguard-theme",
+                body.classList.contains("dark") ? "dark" : "light"
+            );
+
+            updateThemeIcon();
+            updateChartTheme();
+        });
+
+        /* ---------- Tabs ---------- */
+        const tabButtons = document.querySelectorAll(".tab-button");
+        const tabPanels = document.querySelectorAll(".tab-panel");
+        let comparisonLoaded = false;
+
+        function showTab(name, updateHash) {
+            let found = false;
+
+            tabPanels.forEach(function (panel) {
+                const isActive = panel.id === "tab-" + name;
+                panel.classList.toggle("active", isActive);
+                if (isActive) found = true;
+            });
+
+            if (!found) return;
+
+            tabButtons.forEach(function (button) {
+                button.classList.toggle("active", button.dataset.tab === name);
+            });
+
+            if (updateHash) {
+                window.history.replaceState(null, "", "#" + name);
+            }
+
+            if (name === "models") loadComparison();
+
+            window.dispatchEvent(new Event("resize"));
+        }
+
+        tabButtons.forEach(function (button) {
+            button.addEventListener("click", function () {
+                showTab(button.dataset.tab, true);
+            });
+        });
+
+        const hashTab = window.location.hash.replace("#", "");
+        showTab(
+            hashTab && document.getElementById("tab-" + hashTab) ? hashTab : body.dataset.tab,
+            false
+        );
+
+        /* ---------- Back to top ---------- */
+        const toTop = document.getElementById("toTop");
+
+        window.addEventListener("scroll", function () {
+            toTop.classList.toggle("show", window.scrollY > 420);
+        }, { passive: true });
+
+        toTop.addEventListener("click", function () {
+            window.scrollTo({ top: 0, behavior: "smooth" });
+        });
+
+        /* ---------- Message box ---------- */
+        function updateCharacterCount() {
+            charCount.textContent = messageBox.value.length;
+        }
+
+        messageBox.addEventListener("input", updateCharacterCount);
+        updateCharacterCount();
+
+        document.querySelectorAll(".example-button[data-message]").forEach(function (button) {
+            button.addEventListener("click", function () {
+                messageBox.value = button.dataset.message;
+                updateCharacterCount();
+                messageBox.focus();
+            });
+        });
+
+        messageForm.addEventListener("submit", function () {
+            const hasFile = document.getElementById("emlFile").files.length > 0;
+
+            if (messageBox.value.trim() !== "" || hasFile) {
+                analyzeButton.disabled = true;
+                analyzeButton.classList.add("is-loading");
+                analyzeButton.textContent = "Analyzing message...";
+            }
+        });
+
+        /* ---------- .eml upload ---------- */
+        const emlFile = document.getElementById("emlFile");
+        const emlName = document.getElementById("emlName");
+        const emlClear = document.getElementById("emlClear");
+
+        emlFile.addEventListener("change", function () {
+            const hasFile = emlFile.files.length > 0;
+            emlName.textContent = hasFile ? emlFile.files[0].name : "";
+            emlClear.hidden = !hasFile;
+            messageBox.required = !hasFile;
+        });
+
+        emlClear.addEventListener("click", function () {
+            emlFile.value = "";
+            emlName.textContent = "";
+            emlClear.hidden = true;
+            messageBox.required = true;
+        });
+
+        /* ---------- Batch upload ---------- */
+        const csvFile = document.getElementById("csvFile");
+        const csvName = document.getElementById("csvName");
+        const batchForm = document.getElementById("batchForm");
+        const batchButton = document.getElementById("batchButton");
+
+        csvFile.addEventListener("change", function () {
+            csvName.textContent = csvFile.files.length ? csvFile.files[0].name : "No file selected";
+        });
+
+        batchForm.addEventListener("submit", function () {
+            if (csvFile.files.length) {
+                batchButton.disabled = true;
+                batchButton.classList.add("is-loading");
+                batchButton.textContent = "Analyzing file...";
+            }
+        });
+
+        /* ---------- Progress bar + spam chart ---------- */
+        const progressFill = document.querySelector(".progress-fill");
+
+        if (progressFill) {
+            requestAnimationFrame(function () {
+                progressFill.style.width = progressFill.dataset.width + "%";
+            });
+        }
+
+        const chartCanvas = document.getElementById("spamChart");
+
+        if (chartCanvas && window.Chart) {
+            const labels = JSON.parse(chartCanvas.dataset.labels);
+            const counts = JSON.parse(chartCanvas.dataset.counts);
+
+            registerChart(new Chart(chartCanvas, {
+                type: "bar",
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: "Occurrences",
+                        data: counts,
+                        backgroundColor: "rgba(217, 48, 37, 0.78)",
+                        borderColor: "#d93025",
+                        borderWidth: 1,
+                        borderRadius: 7,
+                        maxBarThickness: 35
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    indexAxis: "y",
+                    plugins: {
+                        legend: { display: false },
+                        tooltip: {
+                            callbacks: {
+                                label: function (context) {
+                                    return "Occurrences: " + context.parsed.x;
+                                }
+                            }
+                        }
+                    },
+                    scales: {
+                        x: {
+                            beginAtZero: true,
+                            ticks: { precision: 0, color: chartTextColor() },
+                            grid: { color: "rgba(128,128,128,0.15)" }
+                        },
+                        y: {
+                            ticks: { color: chartTextColor() },
+                            grid: { display: false }
+                        }
+                    }
+                }
+            }));
+        }
+
+        /* ---------- Animated bars and counters ---------- */
+        document.querySelectorAll("[data-fill]").forEach(function (element) {
+            requestAnimationFrame(function () {
+                element.style.width = element.dataset.fill + "%";
+            });
+        });
+
+        document.querySelectorAll("[data-count]").forEach(function (element) {
+            const target = parseInt(element.dataset.count, 10) || 0;
+            const duration = 700;
+            const start = performance.now();
+
+            function step(now) {
+                const progress = Math.min((now - start) / duration, 1);
+                element.textContent = Math.round(target * progress).toLocaleString();
+                if (progress < 1) requestAnimationFrame(step);
+            }
+
+            requestAnimationFrame(step);
+        });
+
+        /* ---------- Smart Threat Radar ---------- */
+        const threatRing = document.getElementById("threatRing");
+
+        if (threatRing) {
+            requestAnimationFrame(function () {
+                threatRing.style.setProperty("--p", threatRing.dataset.score);
+            });
+        }
+
+        const threatCanvas = document.getElementById("threatChart");
+
+        if (threatCanvas && window.Chart) {
+            const levelColors = {
+                low: "#34a853",
+                medium: "#f9ab00",
+                high: "#e8710a",
+                critical: "#d93025"
+            };
+
+            const radarColor = levelColors[threatCanvas.dataset.level] || "#4285f4";
+
+            registerChart(new Chart(threatCanvas, {
+                type: "radar",
+                data: {
+                    labels: JSON.parse(threatCanvas.dataset.labels),
+                    datasets: [{
+                        label: "Threat level",
+                        data: JSON.parse(threatCanvas.dataset.values),
+                        backgroundColor: radarColor + "33",
+                        borderColor: radarColor,
+                        borderWidth: 2,
+                        pointBackgroundColor: radarColor,
+                        pointRadius: 3
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { display: false },
+                        tooltip: {
+                            callbacks: {
+                                label: function (context) {
+                                    return context.label + ": " + context.parsed.r + "%";
+                                }
+                            }
+                        }
+                    },
+                    scales: {
+                        r: {
+                            min: 0,
+                            max: 100,
+                            ticks: { display: false, stepSize: 25 },
+                            grid: { color: "rgba(128,128,128,0.2)" },
+                            angleLines: { color: "rgba(128,128,128,0.2)" },
+                            pointLabels: {
+                                color: chartTextColor(),
+                                font: { size: 11, weight: "600" }
+                            }
+                        }
+                    }
+                }
+            }));
+        }
+
+        /* ---------- Batch doughnut ---------- */
+        const batchCanvas = document.getElementById("batchChart");
+
+        if (batchCanvas && window.Chart) {
+            registerChart(new Chart(batchCanvas, {
+                type: "doughnut",
+                data: {
+                    labels: ["Spam", "Ham"],
+                    datasets: [{
+                        data: [
+                            parseInt(batchCanvas.dataset.spam, 10) || 0,
+                            parseInt(batchCanvas.dataset.ham, 10) || 0
+                        ],
+                        backgroundColor: ["#ea4335", "#34a853"],
+                        borderWidth: 0
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    cutout: "68%",
+                    plugins: {
+                        legend: {
+                            position: "bottom",
+                            labels: { color: chartTextColor(), usePointStyle: true }
+                        }
+                    }
+                }
+            }));
+        }
+
+        /* ---------- Read results aloud ---------- */
+        const speakButton = document.getElementById("speakButton");
+
+        if (speakButton) {
+            const speakIdleText = "🔊 Read results aloud";
+            const speakActiveText = "⏹ Stop reading";
+
+            function setSpeakState(active) {
+                speakButton.classList.toggle("active", active);
+                speakButton.textContent = active ? speakActiveText : speakIdleText;
+            }
+
+            if (!("speechSynthesis" in window)) {
+                speakButton.disabled = true;
+                speakButton.title = "Text-to-speech is not supported in this browser";
+            } else {
+                speakButton.addEventListener("click", function () {
+                    if (window.speechSynthesis.speaking) {
+                        window.speechSynthesis.cancel();
+                        setSpeakState(false);
+                        return;
+                    }
+
+                    const utterance = new SpeechSynthesisUtterance(speakButton.dataset.speech);
+                    utterance.lang = "en-US";
+                    utterance.rate = 0.95;
+                    utterance.onend = function () { setSpeakState(false); };
+                    utterance.onerror = function () { setSpeakState(false); };
+
+                    setSpeakState(true);
+                    window.speechSynthesis.speak(utterance);
+                });
+
+                window.addEventListener("beforeunload", function () {
+                    window.speechSynthesis.cancel();
+                });
+            }
+        }
+
+        /* ---------- PDF analysis report ---------- */
+        const pdfButton = document.getElementById("pdfButton");
+
+        if (pdfButton) {
+            pdfButton.addEventListener("click", function () {
+                if (!window.jspdf) {
+                    alert("The PDF library could not be loaded. Please check your internet connection and try again.");
+                    return;
+                }
+
+                const data = JSON.parse(pdfButton.dataset.report);
+                const doc = new window.jspdf.jsPDF({ unit: "pt", format: "a4" });
+                const pageW = doc.internal.pageSize.getWidth();
+                const pageH = doc.internal.pageSize.getHeight();
+                const margin = 48;
+                const maxW = pageW - margin * 2;
+                let y = 0;
+
+                function clean(text) {
+                    return String(text).replace(/[^\x20-\x7E\u00A0-\u00FF\n]/g, "?");
+                }
+
+                function ensure(space) {
+                    if (y + space > pageH - margin) {
+                        doc.addPage();
+                        y = margin;
+                    }
+                }
+
+                function write(text, size, bold, color, gap, indent) {
+                    const left = margin + (indent || 0);
+                    doc.setFont("helvetica", bold ? "bold" : "normal");
+                    doc.setFontSize(size);
+                    doc.setTextColor(color[0], color[1], color[2]);
+
+                    doc.splitTextToSize(clean(text), maxW - (indent || 0)).forEach(function (line) {
+                        ensure(size + 4);
+                        doc.text(line, left, y);
+                        y += size + 4;
+                    });
+
+                    y += gap;
+                }
+
+                function heading(text) {
+                    ensure(40);
+                    y += 8;
+                    write(text, 13, true, [32, 33, 36], 2);
+                    doc.setDrawColor(211, 217, 227);
+                    doc.line(margin, y - 4, pageW - margin, y - 4);
+                    y += 8;
+                }
+
+                // Header band
+                doc.setFillColor(66, 133, 244);
+                doc.rect(0, 0, pageW, 84, "F");
+                doc.setTextColor(255, 255, 255);
+                doc.setFont("helvetica", "bold");
+                doc.setFontSize(20);
+                doc.text("MailGuard AI - Analysis Report", margin, 40);
+                doc.setFont("helvetica", "normal");
+                doc.setFontSize(10);
+                doc.text("Generated on " + new Date().toLocaleString(), margin, 62);
+                y = 120;
+
+                const isSpam = data.prediction.toLowerCase() === "spam";
+                const resultColor = isSpam ? [217, 48, 37] : [24, 128, 56];
+
+                heading("Classification");
+                write("Predicted category: " + data.prediction, 12, true, resultColor, 2);
+                write("Model confidence: " + Number(data.confidence).toFixed(2) + "%", 11, false, [32, 33, 36], 6);
+
+                heading("Smart Threat Radar");
+                write("Threat score: " + data.threat_score + " / 100 (" + data.threat_level + " threat)", 12, true, [32, 33, 36], 6);
+
+                data.categories.forEach(function (category) {
+                    write(category.name + " - " + category.points + " / " + category.cap + " pts", 11, true, [32, 33, 36], 0);
+                    const detail = category.hits.length ? category.hits.join(", ") : "Nothing detected";
+                    write(detail, 10, false, [104, 115, 134], 6, 12);
+                });
+
+                heading("Suspicious word frequency");
+                if (data.words.length) {
+                    data.words.forEach(function (item) {
+                        write(item.word + "  -  " + item.count + " occurrence(s)", 11, false, [32, 33, 36], 0);
+                    });
+                    y += 6;
+                } else {
+                    write("No suspicious words from the indicator list were found.", 11, false, [104, 115, 134], 6);
+                }
+
+                heading("Links found");
+                if (data.links && data.links.length) {
+                    data.links.forEach(function (link) {
+                        const flags = link.flags.length ? " (" + link.flags.join("; ") + ")" : "";
+                        write(link.url + "  -  " + link.level + flags, 10, false, [32, 33, 36], 4);
+                    });
+                } else {
+                    write("No links were found.", 11, false, [104, 115, 134], 6);
+                }
+
+                heading("Why the model flagged this");
+                if (data.signals && (data.signals.spam.length || data.signals.ham.length)) {
+                    write("Words pushing toward spam: " + (data.signals.spam.join(", ") || "none"), 11, false, [32, 33, 36], 3);
+                    write("Words pushing toward ham: " + (data.signals.ham.join(", ") || "none"), 11, false, [32, 33, 36], 6);
+                } else {
+                    write("An explanation was not available for this message.", 11, false, [104, 115, 134], 6);
+                }
+
+                heading("Analyzed message");
+                write(data.message, 10, false, [32, 33, 36], 6);
+
+                // Footer with page numbers
+                const pages = doc.getNumberOfPages();
+                for (let i = 1; i <= pages; i++) {
+                    doc.setPage(i);
+                    doc.setFont("helvetica", "normal");
+                    doc.setFontSize(9);
+                    doc.setTextColor(104, 115, 134);
+                    doc.text("MailGuard AI  |  Page " + i + " of " + pages, margin, pageH - 24);
+                }
+
+                doc.save("mailguard-report.pdf");
+            });
+        }
+
+        /* ---------- Feedback ---------- */
+        const feedbackBox = document.getElementById("feedback");
+
+        if (feedbackBox) {
+            const feedbackStatus = document.getElementById("feedbackStatus");
+            const feedbackButtons = feedbackBox.querySelectorAll(".feedback-btn");
+
+            feedbackButtons.forEach(function (button) {
+                button.addEventListener("click", function () {
+                    const isCorrect = button.dataset.correct === "1";
+
+                    feedbackButtons.forEach(function (item) { item.disabled = true; });
+
+                    fetch("/api/feedback", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({
+                            message: feedbackBox.dataset.message,
+                            predicted: feedbackBox.dataset.predicted,
+                            correct: isCorrect
+                        })
+                    })
+                    .then(function (response) { return response.json(); })
+                    .then(function (result) {
+                        if (result.ok) {
+                            feedbackStatus.textContent = isCorrect
+                                ? "Thanks! Saved as a confirmed prediction."
+                                : "Thanks! Saved as a correction for retraining.";
+                        } else {
+                            feedbackStatus.textContent = result.error || "Could not save feedback.";
+                        }
+                    })
+                    .catch(function () {
+                        feedbackStatus.textContent = "Could not save feedback.";
+                        feedbackButtons.forEach(function (item) { item.disabled = false; });
+                    });
+                });
+            });
+        }
+
+        /* ---------- History ---------- */
+        const historySearch = document.getElementById("historySearch");
+
+        if (historySearch) {
+            const historyRows = document.querySelectorAll(".history-row");
+            const historyCount = document.getElementById("historyCount");
+            const chips = document.querySelectorAll(".chip");
+            let historyFilter = "all";
+
+            function applyHistoryFilter() {
+                const query = historySearch.value.toLowerCase().trim();
+                let visible = 0;
+
+                historyRows.forEach(function (row) {
+                    const matchesFilter = historyFilter === "all" || row.dataset.label === historyFilter;
+                    const matchesQuery = !query || row.dataset.search.indexOf(query) !== -1;
+                    row.hidden = !(matchesFilter && matchesQuery);
+                    if (!row.hidden) visible++;
+                });
+
+                historyCount.textContent = visible + " of " + historyRows.length + " scan(s)";
+            }
+
+            historySearch.addEventListener("input", applyHistoryFilter);
+
+            chips.forEach(function (chip) {
+                chip.addEventListener("click", function () {
+                    historyFilter = chip.dataset.filter;
+                    chips.forEach(function (item) {
+                        item.classList.toggle("active", item === chip);
+                    });
+                    applyHistoryFilter();
+                });
+            });
+
+            document.getElementById("historyClearForm").addEventListener("submit", function (event) {
+                if (!window.confirm("Clear all scan history?")) event.preventDefault();
+            });
+        }
+
+        document.querySelectorAll(".reanalyze-button").forEach(function (button) {
+            button.addEventListener("click", function () {
+                messageBox.value = button.dataset.message;
+                updateCharacterCount();
+                showTab("analyze", true);
+                window.scrollTo({ top: 0, behavior: "smooth" });
+                messageBox.focus();
+            });
+        });
+
+        /* ---------- Algorithm comparison ---------- */
+        function makeCell(text) {
+            const cell = document.createElement("td");
+            cell.textContent = text;
+            return cell;
+        }
+
+        function renderComparison(data) {
+            const tbody = document.getElementById("compareBody");
+            tbody.innerHTML = "";
+
+            data.models.forEach(function (item) {
+                const row = document.createElement("tr");
+                const nameCell = document.createElement("td");
+                nameCell.textContent = item.name;
+                nameCell.style.fontWeight = "700";
+
+                if (item.name === data.best) {
+                    const pill = document.createElement("span");
+                    pill.className = "best-pill";
+                    pill.textContent = "BEST F1";
+                    nameCell.appendChild(pill);
+                }
+
+                row.appendChild(nameCell);
+                row.appendChild(makeCell(item.accuracy.toFixed(2) + "%"));
+                row.appendChild(makeCell(item.precision.toFixed(2) + "%"));
+                row.appendChild(makeCell(item.recall.toFixed(2) + "%"));
+                row.appendChild(makeCell(item.f1.toFixed(2) + "%"));
+                row.appendChild(makeCell(item.auc.toFixed(4)));
+                row.appendChild(makeCell(String(item.fp)));
+                row.appendChild(makeCell(String(item.fn)));
+                row.appendChild(makeCell(item.train_ms.toFixed(1) + " ms"));
+                tbody.appendChild(row);
+            });
+
+            const best = data.models.filter(function (item) { return item.name === data.best; })[0];
+            document.getElementById("compareSummary").textContent =
+                best.name + " achieved the highest F1-score (" + best.f1.toFixed(2) + "%) on " +
+                data.test_size + " unseen messages, with " + best.fp +
+                " false positive(s) and " + best.fn + " false negative(s). " +
+                "A false positive is a normal message wrongly flagged as spam.";
+
+            const colors = ["#ea4335", "#fbbc05", "#4285f4"];
+
+            registerChart(new Chart(document.getElementById("compareBars"), {
+                type: "bar",
+                data: {
+                    labels: ["Accuracy", "Precision", "Recall", "F1-score"],
+                    datasets: data.models.map(function (item, index) {
+                        return {
+                            label: item.name,
+                            data: [item.accuracy, item.precision, item.recall, item.f1],
+                            backgroundColor: colors[index % colors.length],
+                            borderRadius: 5
+                        };
+                    })
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { position: "bottom", labels: { color: chartTextColor(), usePointStyle: true } }
+                    },
+                    scales: {
+                        y: {
+                            min: 60,
+                            max: 100,
+                            ticks: { color: chartTextColor() },
+                            grid: { color: "rgba(128,128,128,0.15)" }
+                        },
+                        x: { ticks: { color: chartTextColor() }, grid: { display: false } }
+                    }
+                }
+            }));
+
+            const rocSets = data.models.map(function (item, index) {
+                return {
+                    label: item.name + " (AUC " + item.auc.toFixed(3) + ")",
+                    data: item.roc,
+                    borderColor: colors[index % colors.length],
+                    backgroundColor: colors[index % colors.length],
+                    showLine: true,
+                    pointRadius: 0,
+                    borderWidth: 2,
+                    tension: 0
+                };
+            });
+
+            rocSets.push({
+                label: "Random guess",
+                data: [{ x: 0, y: 0 }, { x: 1, y: 1 }],
+                borderColor: "rgba(128,128,128,0.6)",
+                borderDash: [6, 6],
+                showLine: true,
+                pointRadius: 0,
+                borderWidth: 1
+            });
+
+            registerChart(new Chart(document.getElementById("compareRoc"), {
+                type: "scatter",
+                data: { datasets: rocSets },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { position: "bottom", labels: { color: chartTextColor(), usePointStyle: true } }
+                    },
+                    scales: {
+                        x: {
+                            min: 0,
+                            max: 1,
+                            title: { display: true, text: "False positive rate", color: chartTextColor() },
+                            ticks: { color: chartTextColor() },
+                            grid: { color: "rgba(128,128,128,0.15)" }
+                        },
+                        y: {
+                            min: 0,
+                            max: 1,
+                            title: { display: true, text: "True positive rate", color: chartTextColor() },
+                            ticks: { color: chartTextColor() },
+                            grid: { color: "rgba(128,128,128,0.15)" }
+                        }
+                    }
+                }
+            }));
+        }
+
+        function loadComparison() {
+            if (comparisonLoaded) return;
+            comparisonLoaded = true;
+
+            const status = document.getElementById("compareStatus");
+            const results = document.getElementById("compareResults");
+
+            fetch("/api/compare")
+                .then(function (response) {
+                    return response.json().then(function (data) {
+                        return { ok: response.ok, data: data };
+                    });
+                })
+                .then(function (result) {
+                    if (!result.ok || result.data.error) {
+                        throw new Error(result.data.error || "Request failed");
+                    }
+                    renderComparison(result.data);
+                    status.hidden = true;
+                    results.hidden = false;
+                })
+                .catch(function (error) {
+                    comparisonLoaded = false;
+                    status.className = "error-message";
+                    status.textContent = "Could not load the comparison: " + error.message;
+                });
+        }
+
+        /* ---------- API tab ---------- */
+        document.querySelectorAll(".api-base").forEach(function (element) {
+            element.textContent = window.location.origin;
+        });
+
+        const apiTry = document.getElementById("apiTry");
+
+        apiTry.addEventListener("click", function () {
+            const output = document.getElementById("apiOutput");
+            const text = document.getElementById("apiInput").value.trim();
+
+            if (!text) {
+                output.textContent = "Type a message first.";
+                return;
+            }
+
+            output.textContent = "Loading...";
+
+            fetch("/api/predict", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ message: text })
+            })
+            .then(function (response) { return response.json(); })
+            .then(function (result) { output.textContent = JSON.stringify(result, null, 2); })
+            .catch(function () { output.textContent = "The request failed."; });
+        });
+    </script>
+</body>
+</html>
